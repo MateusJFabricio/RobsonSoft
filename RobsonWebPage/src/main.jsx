@@ -7,6 +7,8 @@ import { JoystickContextProvider } from './context/JoystickContext.jsx';
 import {createBrowserRouter,RouterProvider} from "react-router-dom";
 import HomePage from './pages/HomePage/HomePage.jsx';
 import ControlRobot from './pages/ControlRobot/ControlRobot.jsx'
+import SoftwarePage from './pages/Software/SoftwarePage.jsx'
+import ConfiguracaoPage from './pages/ConfiguracaoPage/ConfiguracaoPage.jsx'
 
 const router = createBrowserRouter([
   {
@@ -24,12 +26,16 @@ const router = createBrowserRouter([
           element: <HomePage/>
         },
         {
-          path: "/control",
-          element: <ControlRobot/>
+          path: "/configuracao",
+          element: <ConfiguracaoPage/>
         },
         {
-          path: "/Teste",
-          element: <HomePage/>
+          path: "/software",
+          element: <SoftwarePage/>
+        },
+        {
+          path: "/control",
+          element: <ControlRobot/>
         },
     ] 
   }

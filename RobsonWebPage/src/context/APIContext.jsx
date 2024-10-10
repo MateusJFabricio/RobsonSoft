@@ -86,8 +86,7 @@ export const ApiContextProvider = ({children})=>{
         GENERAL: {
             HOMEM_MORTO: false,
             ENABLE_MANUAL_MOVE: enableRobot.current,
-            START_AUTOMATIC: false,
-            STOP: stopRobot.current
+            START_AUTOMATIC: false
         }
       }
     }

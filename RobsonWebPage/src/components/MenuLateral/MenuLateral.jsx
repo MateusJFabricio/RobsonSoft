@@ -6,6 +6,7 @@ import ControlIcon from '../../assets/control-icon.svg'
 import ConfigIcon from '../../assets/setting-icon.svg'
 import Logo from '../../assets/robotic-arm.png'
 import ProjectIcon from '../../assets/project-icon.svg'
+import SoftwareIcon from '../../assets/software-icon.svg'
 import MenuLateralCategoria from '../MenuLateralCategoria/MenuLateralCategoria';
 
 const MenuLateral = () => {
@@ -14,6 +15,7 @@ const MenuLateral = () => {
     const [configSelected, setConfigSelected] = useState(false)
     const [controlSelected, setControlSelected] = useState(false)
     const [projectSelected, setProjectSelected] = useState(false)
+    const [softwareSelected, setSoftwareSelected] = useState(false)
 
     const handleFlyClick = ()=>{
         navigate("/Fly")
@@ -24,6 +26,7 @@ const MenuLateral = () => {
         setConfigSelected(false)
         setControlSelected(false)
         setProjectSelected(false)
+        setSoftwareSelected(false)
         navigate("/")
     }
 
@@ -32,7 +35,8 @@ const MenuLateral = () => {
         setConfigSelected(true)
         setControlSelected(false)
         setProjectSelected(false)
-        navigate("/config")
+        setSoftwareSelected(false)
+        navigate("/configuracao")
     }
 
     const controlClick = ()=>{
@@ -40,7 +44,17 @@ const MenuLateral = () => {
         setConfigSelected(false)
         setControlSelected(true)
         setProjectSelected(false)
+        setSoftwareSelected(false)
         navigate("/control")
+    }
+
+    const softwareClick = ()=>{
+        setHomeSelected(false)
+        setConfigSelected(false)
+        setControlSelected(false)
+        setProjectSelected(false)
+        setSoftwareSelected(true)
+        navigate("/software")
     }
 
     const projectClick = ()=>{
@@ -48,7 +62,7 @@ const MenuLateral = () => {
         setConfigSelected(false)
         setControlSelected(false)
         setProjectSelected(true)
-
+        setSoftwareSelected(false)
     }
   return (
     <>
@@ -79,6 +93,7 @@ const MenuLateral = () => {
                 </div>
                 <MenuLateralCategoria text={"View"}>
                     <MenuLateralItem text={"Home"} icon={HomeIcon} isSelected={homeSelected} buttonClick={homeClick}/>
+                    <MenuLateralItem text={"Software"} icon={SoftwareIcon} isSelected={softwareSelected} buttonClick={softwareClick}/>
                     <MenuLateralItem text={"Configuração"} icon={ConfigIcon} isSelected={configSelected} buttonClick={configClick}/>
                 </MenuLateralCategoria>
                 <MenuLateralCategoria text={"Outras Coisas"} icon={HomeIcon}>

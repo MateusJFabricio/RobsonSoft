@@ -2,6 +2,7 @@ import React, {useContext, createRef } from 'react'
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
 import { ApiContext } from '../../context/APIContext.jsx'
+import Spinner from 'react-bootstrap/Spinner';
 
 
 const Conexao = () => {
@@ -10,8 +11,9 @@ const Conexao = () => {
 
     const connectionSubmit = (e)=>{
         e.preventDefault();
-        console.log( inputRef.current.value)
+        setUrl(inputRef.current.value)
     }
+    //variant="success"
   return (
     <div style={{
         display: 'flex',
@@ -27,9 +29,24 @@ const Conexao = () => {
             }}>
             <Form.Label>IP:</Form.Label>
             <Form.Control type="text" ref={inputRef}/>
-            <Button variant="success" type="submit">
-                Conectar
+            <Button variant= {connectionStatus !== 'Open' ? "warning" : "success"} type="submit">
+                {connectionStatus === 'Connecting' && "Conectando"}
+                {connectionStatus === 'Open' && "Conectado"}
+                {connectionStatus === 'Closed' && "Conectar"}
             </Button>
+            {connectionStatus !== 'Open' &&
+                <Button variant="danger" disabled>
+                    {connectionStatus === 'Connecting' &&
+                        <Spinner
+                        as="div"
+                        animation="grow"
+                        size="sm"
+                        role="status"
+                        aria-hidden="true"
+                        />
+                    }
+                </Button>
+            }
         </Form>
     </div>
   )

@@ -7,7 +7,7 @@ const MenuSuperior = ({children}) => {
         { 
           display: 'flex', 
           flexDirection: 'row-reverse',
-          gap: '5px',
+          gap: '20px',
           width: '100%', 
           height: '50px', 
           backgroundColor: '#212529',
