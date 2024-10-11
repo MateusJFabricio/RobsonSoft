@@ -3,9 +3,19 @@ import { useState, useEffect } from 'react';
 const PS4Joystick = ({joystick}) => {
 
     useEffect(()=>{
-        //console.log(joystick);
+        //console.log(joystick.buttons);
     }, [joystick])
 
+    const getSingleAxis = (axis)=>{
+        try {
+            let valor = joystick.buttons[axis].value;
+            if(valor < 0)
+                valor *= -1;
+            return "rgba(0,0,0,"+ valor + ")";
+        } catch (error) {
+            return "rgba(0,0,0,0)";
+        }
+    }
     const getAxis = (axis1, axis2)=>{
         try {
             let value1 = joystick.axes[axis1];
@@ -124,9 +134,9 @@ const PS4Joystick = ({joystick}) => {
                 <rect id="L1" x="111.5" y="61.5" width="41" height="13" rx="6.5" fill={getButtonPressed(4)} stroke="rgba(0,0,0,1)" strokeWidth="3"></rect>
                 <rect id="R1" x="289.5" y="61.5" width="41" height="13" rx="6.5" fill={getButtonPressed(5)} stroke="rgba(0,0,0,1)" strokeWidth="3"></rect>
                 <path id="L2" d="M152.5 37C152.5 41.1421 149.142 44.5 145 44.5H132C127.858 44.5 124.5 41.1421 124.5 37V16.5C124.5 8.76801 130.768 2.5 138.5 2.5C146.232 2.5 152.5 8.76801 152.5 16.5V37Z" 
-                fill="rgba(0,0,0,0)" stroke="rgba(0,0,0,1)" strokeWidth="3"></path>
+                fill={getSingleAxis(6)} stroke="rgba(0,0,0,1)" strokeWidth="3"></path>
                 <path id="R2" d="M317.5 37C317.5 41.1421 314.142 44.5 310 44.5H297C292.858 44.5 289.5 41.1421 289.5 37V16.5C289.5 8.76801 295.768 2.5 303.5 2.5C311.232 2.5 317.5 8.76801 317.5 16.5V37Z" 
-                fill="rgba(0,0,0,0)" stroke="rgba(0,0,0,1)" strokeWidth="3"></path>
+                fill={getSingleAxis(7)} stroke="rgba(0,0,0,1)" strokeWidth="3"></path>
                 <line x1="30" y1="210" x2="130" y2="300" strokeWidth="3" stroke="hsl(210,50%,85%)" opacity="0.3"></line>
                 <line x1="411" y1="210" x2="311" y2="300" strokeWidth="3" stroke="hsl(210,50%,85%)" opacity="0.3"></line>
             </g>

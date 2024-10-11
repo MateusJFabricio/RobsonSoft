@@ -1,42 +1,54 @@
-import React, {useState, Suspense, useRef,useEffect } from 'react'
-const BlocklyWorkspace = React.lazy(() => import('react-blockly'));
+import React, { useState } from 'react';
+import BlockyCustom from '../../components/BlockyCustom/BlockyCustom';
+import Form from 'react-bootstrap/Form';
+import Button from 'react-bootstrap/Button';
+import { VscNewFile } from 'react-icons/vsc';
+import { MdFileOpen, MdSaveAlt } from 'react-icons/md';
+import { FaRegSave, FaPlay,  } from 'react-icons/fa';
+import { GrPowerReset  } from 'react-icons/gr';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col'
+import Container from 'react-bootstrap/esm/Container';
 
 const SoftwarePage = () => {
-  const [xml, setXml] = useState('<xml xmlns="http://www.w3.org/1999/xhtml"><block type="text" x="70" y="30"><field name="TEXT"></field></block></xml>');
 
-  const MY_TOOLBOX = {
-    "kind": "categoryToolbox",
-    "contents": [
-      {
-        "kind": "category",
-        "name": "Logic",
-        "contents": [
-          {
-            "kind": "block",
-            "type": "controls_if"
-          },
-          {
-            "kind": "block",
-            "type": "logic_compare"
-          }
-        ]
-      }
-    ]
-  };
-  
   return (
-    <div style={{ width: '100%', height: '30rem' }}>
-      <Suspense fallback={<div>Loading Blockly...</div>}>
-        <BlocklyWorkspace
-          className="width-100"
-          toolboxConfiguration={MY_TOOLBOX}
-          initialXml={xml}
-          onXmlChange={setXml}
-          style={{ height: '100%', width: '100%' }}
-        />
-      </Suspense>
+    <div style={{display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '2%', gap: '1%'}}>
+      <div style={{display: 'flex', flexDirection: 'row', height: '5%', width: '100%', alignContent: 'center', alignItems: 'center', gap: '10px'}}>
+        <h3>Software</h3>
+        <div style={{display: 'flex', flexDirection: 'row', width: '100%', alignContent: 'center', alignItems: 'center', justifyContent: 'right'}}>
+          <Button variant="light"><VscNewFile />Novo</Button>
+          <Button variant="light"><MdFileOpen/> Abrir</Button>
+          <Button variant="light"><FaRegSave/>Salvar</Button>
+          <Button variant="light"><MdSaveAlt/>Exportar</Button>
+        </div>
+      </div>
+      <div style={{width: '50%'}}>
+        <Row>
+          <Col>
+            <Form.Control type="text" placeholder="Nome da função" />
+          </Col>
+          <Col xs={3}>
+            <Button variant="light"><FaRegSave/>Salvar</Button>
+          </Col>
+        </Row>
+      </div>
+      <BlockyCustom/>
+      <Container>
+        <Row>
+          <Col>
+          </Col>
+          <Col md="auto">
+            <Button variant="light"><GrPowerReset/>Home</Button>
+            {' '}
+            <Button variant="primary"><FaPlay/>Play</Button>
+          </Col>
+          <Col>
+          </Col>
+        </Row>
+      </Container>
     </div>
-  )
+  );
 }
 
 export default SoftwarePage

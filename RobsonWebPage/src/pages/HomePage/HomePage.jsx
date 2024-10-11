@@ -1,23 +1,50 @@
-import React from 'react'
-import MenuSuperior from '../../components/MenuSuperior/MenuSuperior'
-import MenuLateral from '../../components/MenuLateral/MenuLateral'
-import { Outlet } from 'react-router-dom'
-import Dropdown from 'react-bootstrap/Dropdown';
+import React, {useState, useEffect, useContext} from 'react'
+import ButtonGroup from 'react-bootstrap/ButtonGroup';
+import ToggleButton from 'react-bootstrap/ToggleButton';
+import Col from 'react-bootstrap/esm/Col';
+import Container from 'react-bootstrap/esm/Container';
+import Form from 'react-bootstrap/Form';
+import Button from 'react-bootstrap/esm/Button';
 
 const HomePage = () => {
+    const [manualMode, setManualMode] = useState(false)
+    const [manualCemMode, setManualCemMode] = useState(false)
+    const [autoMode, setAutoMode] = useState(false)
+    const [checked, setChecked] = useState(false);
+    const [radioValue, setRadioValue] = useState('1');
+
+    const radios = [
+        { name: 'Manual', value: '1' },
+        { name: 'Manual 100%', value: '2' },
+        { name: 'Automatico', value: '3' },
+      ];
+
   return (
     <div style={{padding: '10px'}}>
-        <Dropdown>
-        <Dropdown.Toggle variant="success" id="dropdown-basic">
-            Modo de Operação
-        </Dropdown.Toggle>
-
-        <Dropdown.Menu>
-            <Dropdown.Item href="#/action-1">Action</Dropdown.Item>
-            <Dropdown.Item href="#/action-2">Another action</Dropdown.Item>
-            <Dropdown.Item href="#/action-3">Something else</Dropdown.Item>
-        </Dropdown.Menu>
-        </Dropdown>
+        <Container>
+            <Col>
+                <h6>Modo de Operação:</h6>
+                <ButtonGroup>
+                {radios.map((radio, idx) => (
+                <ToggleButton
+                    key={idx}
+                    id={`radio-${idx}`}
+                    type="radio"
+                    variant={idx !== 2 ? 'outline-success' : 'outline-danger'}
+                    name="radio"
+                    value={radio.value}
+                    checked={radioValue === radio.value}
+                    onChange={(e) => setRadioValue(e.currentTarget.value)}
+                >
+                    {radio.name}
+                </ToggleButton>
+                ))}
+                </ButtonGroup>
+            </Col>
+            <Col>
+            </Col>
+            
+        </Container>
     </div>
   )
 }

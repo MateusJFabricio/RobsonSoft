@@ -9,15 +9,18 @@ import HomePage from './pages/HomePage/HomePage.jsx';
 import ControlRobot from './pages/ControlRobot/ControlRobot.jsx'
 import SoftwarePage from './pages/Software/SoftwarePage.jsx'
 import ConfiguracaoPage from './pages/ConfiguracaoPage/ConfiguracaoPage.jsx'
+import { RobotStatusContextProvider } from './context/RobotStatusContext.jsx'
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: (
         <JoystickContextProvider>
-          <ApiContextProvider>
-            <App/>
-          </ApiContextProvider>
+          <RobotStatusContextProvider>
+            <ApiContextProvider>
+              <App/>
+            </ApiContextProvider>
+          </RobotStatusContextProvider>
         </JoystickContextProvider>
       ),
       children:[

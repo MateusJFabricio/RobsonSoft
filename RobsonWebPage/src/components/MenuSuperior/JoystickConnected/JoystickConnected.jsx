@@ -1,5 +1,5 @@
 import React, {useContext} from 'react'
-import {JoystickContext} from '../../context/JoystickContext.jsx'
+import {JoystickContext} from '../../../context/JoystickContext.jsx'
 
 const JoystickConnected = () => {
     const {joystick} = useContext(JoystickContext);

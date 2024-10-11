@@ -6,7 +6,9 @@ const MenuSuperior = ({children}) => {
       <div style={
         { 
           display: 'flex', 
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
+          alignItems: 'right',
+          justifyContent: 'right',
           gap: '20px',
           width: '100%', 
           height: '50px', 

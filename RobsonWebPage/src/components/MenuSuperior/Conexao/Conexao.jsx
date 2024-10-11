@@ -1,7 +1,7 @@
-import React, {useContext, createRef } from 'react'
+import React, {useContext, createRef, useEffect } from 'react'
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
-import { ApiContext } from '../../context/APIContext.jsx'
+import { ApiContext } from '../../../context/APIContext.jsx'
 import Spinner from 'react-bootstrap/Spinner';
 
 
@@ -13,6 +13,9 @@ const Conexao = () => {
         e.preventDefault();
         setUrl(inputRef.current.value)
     }
+    useEffect(() => {
+        inputRef.current.value = ip;
+      }, [ip])
     //variant="success"
   return (
     <div style={{
@@ -29,13 +32,13 @@ const Conexao = () => {
             }}>
             <Form.Label>IP:</Form.Label>
             <Form.Control type="text" ref={inputRef}/>
-            <Button variant= {connectionStatus !== 'Open' ? "warning" : "success"} type="submit">
+            <Button style={{width: '150px'}} variant= {connectionStatus !== 'Open' ? "warning" : "success"} type="submit">
                 {connectionStatus === 'Connecting' && "Conectando"}
                 {connectionStatus === 'Open' && "Conectado"}
                 {connectionStatus === 'Closed' && "Conectar"}
             </Button>
-            {connectionStatus !== 'Open' &&
-                <Button variant="danger" disabled>
+            {/* nnectionStatus !== 'Open' &&
+                <Button variant="danger" disabled style={{width: '60px'}}>
                     {connectionStatus === 'Connecting' &&
                         <Spinner
                         as="div"
@@ -46,6 +49,7 @@ const Conexao = () => {
                         />
                     }
                 </Button>
+                */
             }
         </Form>
     </div>

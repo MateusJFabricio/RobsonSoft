@@ -1,17 +1,19 @@
 import { createContext, useRef, useState, useEffect, useContext } from "react";
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import {JoystickContext} from './JoystickContext'
+import { RobotStatusContext } from './RobotStatusContext';
 
 export const ApiContext = createContext();
 
 export const ApiContextProvider = ({children})=>{
+    const {controlData, robotStatus, SetModoOperacao, SetMoveType, SetSpeed} = useContext(RobotStatusContext)
     const {joystick} = useContext(JoystickContext);
     const joystickRef = useRef(joystick)
+    const controlDataRef = useRef(controlData)
     const connectionStatusRef = useRef('Closed')
-    const [socketUrl, setSocketUrl] = useState("wss://" + (localStorage.getItem('IP_ROBOT') || 'robsonsoft') + ":81/");
+    const [socketUrl, setSocketUrl] = useState("ws://" + (localStorage.getItem('IP_ROBOT') || 'robsonsoft') + ":81/");
     const [ip, setIp] = useState((localStorage.getItem('IP_ROBOT') || 'robsonsoft'));
     const enableRobot = useRef(false);
-    const stopRobot = useRef(false);
 
     const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
         onError: (event)=>{
@@ -35,67 +37,28 @@ export const ApiContextProvider = ({children})=>{
     const setUrl = (ip)=>{
       localStorage.setItem('IP_ROBOT', ip);
       setSocketUrl("ws://"+ ip + ":81");
+      console.log(socketUrl)
       setIp(ip);
     }
     
-    const controlData = ()=>{
-      //Enable
-      if(joystickRef.current.buttons[5].pressed){
-        enableRobot.current = true;
-        joystickRef.current.vibrationActuator.playEffect("dual-rumble", {
-          startDelay: 0,
-          duration: 200,
-          weakMagnitude: 1.0,
-          strongMagnitude: 1.0,
-        });
-      }
-
-      if(joystickRef.current.buttons[4].pressed){
-        enableRobot.current = false;
-        joystickRef.current.vibrationActuator.playEffect("dual-rumble", {
-          startDelay: 0,
-          duration: 200,
-          weakMagnitude: 1.0,
-          strongMagnitude: 1.0,
-        });
-      }
-      //joystickRef.current.axes[0],
-      return {
-        MOVE_TYPE:{
-            MOVE_ANGLE: false,
-            MOVE_JOINT: true,
-            MOVE_LINEAR: false
-        },
-        MOVE_ANGLE:{
-            MOVE_X: joystickRef.current.axes[0],
-            MOVE_Y: joystickRef.current.axes[1] * -1,
-            MOVE_Z: joystickRef.current.axes[2],
-            SPEED: 10, //°/s
-        },
-        MOVE_LINEAR:{
-            MOVE_X: joystickRef.current.axes[0],
-            MOVE_Y: joystickRef.current.axes[1] * -1,
-            MOVE_Z: joystickRef.current.axes[2],
-            SPEED: 10, //mm/s
-        },
-        MOVE_JOINT: {
-            MOVE: joystickRef.current.axes[2],
-            JOINT_NUMBER: 0,
-            SPEED: 10, //°/s
-        },
-        GENERAL: {
-            HOMEM_MORTO: false,
-            ENABLE_MANUAL_MOVE: enableRobot.current,
-            START_AUTOMATIC: false
+    const getAxis1Value = ()=>{
+        if (joystickRef.current.buttons[0].pressed){
+            return -1;
         }
-      }
+
+        if (joystickRef.current.buttons[3].pressed){
+            return 1;
+        }
+
+        return 0;
     }
 
     useEffect(() => {
       const interval = setInterval(()=>{
         if(joystickRef.current !== null){
           if (connectionStatusRef.current === 'Open'){
-            let ctrlData = controlData();
+            let ctrlData = controlDataRef.current;
+            console.log(ctrlData.GENERAL.DEAD_MAN)
             sendMessage(JSON.stringify(ctrlData));
           }
         }
@@ -121,6 +84,10 @@ export const ApiContextProvider = ({children})=>{
     useEffect(() => {
       joystickRef.current = joystick;
     }, [joystick])
+
+    useEffect(() => {
+        controlDataRef.current = controlData;
+      }, [controlData])
 
     useEffect(() => {
       connectionStatusRef.current = connectionStatus;
