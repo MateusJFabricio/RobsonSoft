@@ -4,16 +4,13 @@ import {JoystickContext} from './JoystickContext'
 export const RobotStatusContext = createContext();
 
 export const RobotStatusContextProvider = ({children})=>{
+    const [robotIp, setRobotIp] = useState("")
+    const robotIpRef = useRef("")
     const {joystick} = useContext(JoystickContext);
     const joystickRef = useRef(joystick)
     const enableRobot = useRef(false);
     const [controlData, setControlData] = useState(
         {
-            MOVE_TYPE:{
-                MOVE_ANGLE: false,
-                MOVE_JOINT: false,
-                MOVE_LINEAR: false
-            },
             MOVE_ANGLE:{
                 MOVE_X: 0,
                 MOVE_Y: 0,
@@ -54,6 +51,7 @@ export const RobotStatusContextProvider = ({children})=>{
             AUTOMATICO: false
         },
         DEAD_MAN: false,
+        SPEED: 0,
         MOVE_TYPE:{
             LINEAR: false,
             JOINT: false,
@@ -87,24 +85,15 @@ export const RobotStatusContextProvider = ({children})=>{
         }
 
       return {
-        MOVE_TYPE:{
-            MOVE_ANGLE: controlData.MOVE_TYPE.MOVE_ANGLE,
-            MOVE_JOINT: controlData.MOVE_TYPE.MOVE_JOINT,
-            MOVE_LINEAR: controlData.MOVE_TYPE.MOVE_LINEAR
-        },
         MOVE_ANGLE:{
             MOVE_X: joystickRef.current.axes[0],
             MOVE_Y: joystickRef.current.axes[1] * -1,
             MOVE_Z: joystickRef.current.axes[2],
-            SPEED: controlData.MOVE_ANGLE.SPEED, //°/s
-            RAMP: 5,
         },
         MOVE_LINEAR:{
             MOVE_X: joystickRef.current.axes[0],
             MOVE_Y: joystickRef.current.axes[1] * -1,
             MOVE_Z: joystickRef.current.axes[2],
-            SPEED: controlData.MOVE_LINEAR.SPEED, //mm/s
-            RAMP: 5,
         },
         MOVE_JOINT: {
             JOINT1: getAxis1Value(),
@@ -112,8 +101,6 @@ export const RobotStatusContextProvider = ({children})=>{
             JOINT3: joystickRef.current.axes[1],
             JOINT4: joystickRef.current.axes[2],
             JOINT5: joystickRef.current.axes[3],
-            SPEED: controlData.MOVE_JOINT.SPEED, //°/s
-            RAMP: 5,
         },
         GRIPPER: {
             OPEN: false,
@@ -143,7 +130,10 @@ export const RobotStatusContextProvider = ({children})=>{
       if (joystickRef.current !== null){
         let contData = getControlData()
         setControlData(contData);
-        SetDeadMan(contData.GENERAL.DEAD_MAN);
+
+        let statusTemp = robotStatus;
+        //statusTemp.DEAD_MAN = contData.GENERAL.DEAD_MAN;
+        setRobotStatus(statusTemp)
       }
     }, [joystick])
 
@@ -155,7 +145,7 @@ export const RobotStatusContextProvider = ({children})=>{
             AUTOMATICO: auto
         }
 
-        setRobotStatus(statusTemp)
+        sendRobotStatus(statusTemp);
     }
     const SetMoveType = (joint, linear, rotational)=>{
         let statusTemp = robotStatus;
@@ -165,24 +155,63 @@ export const RobotStatusContextProvider = ({children})=>{
             MOVE_ANGLE: rotational
         }
 
-        setRobotStatus(statusTemp)
-    }
-    const SetDeadMan = (deadMan)=>{
-        let statusTemp = robotStatus;
-        statusTemp.DEAD_MAN = deadMan;
-
-        setRobotStatus(statusTemp)
+        sendRobotStatus(statusTemp);
     }
     const SetSpeed = (speed)=>{
-        let controlTemp = controlData;
-        controlTemp.MOVE_ANGLE.SPEED = speed;
-        controlTemp.MOVE_JOINT.SPEED = speed;
-        controlTemp.MOVE_LINEAR.SPEED = speed;
+        let statusTemp = robotStatus;
+        statusTemp.SPEED = speed;
 
-        setControlData(controlTemp);
+        sendRobotStatus(statusTemp);
     }
+    useEffect(() => {
+        const interval = setInterval(()=>{
+            if (robotIpRef.current !== ""){
+                try{
+                    fetch("http://" + robotIpRef.current + ":80/getRobotStatus")
+                    .then((response) => response.json())
+                    .then((json) => {
+                        setRobotStatus(json);
+                    })
+                }catch{
+    
+                }
+            }
+          }
+        , 1000);
+        
+        return () =>{ 
+          clearInterval(interval)
+        }
+      }, []) 
+
+      useEffect(() => {
+        robotIpRef.current = robotIp;
+      }, [robotIp])
+      
+
+    const sendRobotStatus = (json) => {
+        if (robotIp !== ""){
+            
+            if (robotStatus != null){
+                try{
+                    fetch("http://" + robotIp + ":80/postRobotState", {
+                    method: "POST",
+                    body: JSON.stringify(json),
+                    headers: {
+                        "Content-type": "text/plain;"
+                    }
+                    })
+                    .then((response) => response.json())
+                    
+                }catch(erro){
+                    console.log(erro)
+                }
+            }
+        }
+    }
+    
     return(
-        <RobotStatusContext.Provider value={{controlData, robotStatus, SetModoOperacao, SetMoveType, SetSpeed}}>
+        <RobotStatusContext.Provider value={{controlData, robotStatus, SetModoOperacao, SetMoveType, SetSpeed, setRobotIp}}>
             {children}
         </RobotStatusContext.Provider >
     )

@@ -16,7 +16,7 @@ const OperationMode = () => {
             }
 
         if (robotStatus.MODO_OPERACAO.MANUAL){
-            setTexto("MANUL")
+            setTexto("MANUAL")
         }
 
         if (robotStatus.MODO_OPERACAO.MANUAL_CEM){

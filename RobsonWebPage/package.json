@@ -10,6 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.2",
+    "@uiw/codemirror-theme-androidstudio": "^4.23.5",
+    "@uiw/react-codemirror": "^4.23.5",
+    "blocky": "^0.0.1",
     "bootstrap": "^5.3.3",
     "react": "^18.3.1",
     "react-blockly": "^9.0.0",

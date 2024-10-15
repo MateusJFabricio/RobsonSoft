@@ -6,7 +6,7 @@ import { RobotStatusContext } from './RobotStatusContext';
 export const ApiContext = createContext();
 
 export const ApiContextProvider = ({children})=>{
-    const {controlData, robotStatus, SetModoOperacao, SetMoveType, SetSpeed} = useContext(RobotStatusContext)
+    const {controlData, robotStatus, SetModoOperacao, SetMoveType, SetSpeed, setRobotIp} = useContext(RobotStatusContext)
     const {joystick} = useContext(JoystickContext);
     const joystickRef = useRef(joystick)
     const controlDataRef = useRef(controlData)
@@ -37,20 +37,8 @@ export const ApiContextProvider = ({children})=>{
     const setUrl = (ip)=>{
       localStorage.setItem('IP_ROBOT', ip);
       setSocketUrl("ws://"+ ip + ":81");
-      console.log(socketUrl)
       setIp(ip);
-    }
-    
-    const getAxis1Value = ()=>{
-        if (joystickRef.current.buttons[0].pressed){
-            return -1;
-        }
-
-        if (joystickRef.current.buttons[3].pressed){
-            return 1;
-        }
-
-        return 0;
+      setRobotIp(ip);
     }
 
     useEffect(() => {
@@ -91,7 +79,9 @@ export const ApiContextProvider = ({children})=>{
 
     useEffect(() => {
       connectionStatusRef.current = connectionStatus;
+      setRobotIp(ip);
     }, [connectionStatus])
+    
 
     return(
         <ApiContext.Provider value={{setUrl, connectionStatus, ip}}>

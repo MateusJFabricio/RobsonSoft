@@ -1,4 +1,4 @@
-import React, {useState, useContext} from 'react'
+import React, {useState, useContext, useEffect} from 'react'
 import Dropdown from 'react-bootstrap/Dropdown';
 import { RobotStatusContext } from '../../../context/RobotStatusContext';
 
@@ -7,9 +7,14 @@ const SpeedConfig = () => {
     const {controlData, robotStatus, SetModoOperacao, SetMoveType, SetSpeed} = useContext(RobotStatusContext)
 
     const changeSpeed = (speed)=>{
-        setSpeed(speed)
         SetSpeed(speed)
     }
+
+     useEffect(() => {
+      console.log(robotStatus)
+      setSpeed(robotStatus.SPEED)
+    }, [robotStatus])
+    
   return (
     <div style={{
         display: 'flex',

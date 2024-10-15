@@ -3,9 +3,10 @@ import BlockyCustom from '../../components/BlockyCustom/BlockyCustom';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import { VscNewFile } from 'react-icons/vsc';
-import { MdFileOpen, MdSaveAlt } from 'react-icons/md';
+import { MdFileOpen, MdSaveAlt, MdCode } from 'react-icons/md';
 import { FaRegSave, FaPlay,  } from 'react-icons/fa';
 import { GrPowerReset  } from 'react-icons/gr';
+import { FiCodepen  } from 'react-icons/fi';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col'
 import Container from 'react-bootstrap/esm/Container';
@@ -23,13 +24,18 @@ const SoftwarePage = () => {
           <Button variant="light"><MdSaveAlt/>Exportar</Button>
         </div>
       </div>
-      <div style={{width: '50%'}}>
+      <div style={{width: '100%'}}>
         <Row>
-          <Col>
-            <Form.Control type="text" placeholder="Nome da função" />
+          <Col xs={4}>
+            <Form.Control type="text" placeholder="Nome do Prog" value={"Prog1"} />
           </Col>
-          <Col xs={3}>
+          <Col xs={4}>
             <Button variant="light"><FaRegSave/>Salvar</Button>
+          </Col>
+          <Col xs={4}>
+            <Button variant="info"><MdCode/>Código</Button>
+            {' '}
+            <Button variant="light"><FiCodepen/>Bloco</Button>
           </Col>
         </Row>
       </div>
