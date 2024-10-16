@@ -27,7 +27,7 @@ const SoftwarePage = () => {
       <div style={{width: '100%'}}>
         <Row>
           <Col xs={4}>
-            <Form.Control type="text" placeholder="Nome do Prog" value={"Prog1"} />
+            <Form.Control type="text" placeholder="Nome do Prog" value={"Prog1"} onChange={()=>{}} />
           </Col>
           <Col xs={4}>
             <Button variant="light"><FaRegSave/>Salvar</Button>

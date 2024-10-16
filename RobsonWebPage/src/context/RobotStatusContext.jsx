@@ -53,9 +53,9 @@ export const RobotStatusContextProvider = ({children})=>{
         DEAD_MAN: false,
         SPEED: 0,
         MOVE_TYPE:{
-            LINEAR: false,
-            JOINT: false,
-            ROTATIONAL: false
+            MOVE_LINEAR: false,
+            MOVE_JOINT: false,
+            MOVE_ANGLE: false
         }
     })
     const getControlData = ()=>{
@@ -97,14 +97,16 @@ export const RobotStatusContextProvider = ({children})=>{
         },
         MOVE_JOINT: {
             JOINT1: getAxis1Value(),
-            JOINT2: joystickRef.current.axes[0],
-            JOINT3: joystickRef.current.axes[1],
+            JOINT2: joystickRef.current.axes[0].toFixed(2),
+            JOINT3: joystickRef.current.axes[1] * -1,
             JOINT4: joystickRef.current.axes[2],
-            JOINT5: joystickRef.current.axes[3],
+            JOINT5: joystickRef.current.axes[3] * -1,
         },
         GRIPPER: {
-            OPEN: false,
-            CLOSE: false
+            OPEN: joystickRef.current.buttons[14].pressed,
+            CLOSE: joystickRef.current.buttons[15].pressed,
+            MOVE_OPEN: joystickRef.current.buttons[12].pressed,
+            MOVE_CLOSE: joystickRef.current.buttons[13].pressed
         },
         GENERAL: {
             DEAD_MAN: enableRobot.current,
@@ -160,7 +162,7 @@ export const RobotStatusContextProvider = ({children})=>{
     const SetSpeed = (speed)=>{
         let statusTemp = robotStatus;
         statusTemp.SPEED = speed;
-
+        console.log(statusTemp)
         sendRobotStatus(statusTemp);
     }
     useEffect(() => {

@@ -48,6 +48,8 @@ struct ManualMoveType {
   struct {
     bool Open;
     bool Close;
+    bool MoveOpen;
+    bool MoveClose;
   } Gripper;
 
   struct {
@@ -70,6 +72,16 @@ struct JointParam {
   int pinEnable;
 };
 
+struct GripperParam {
+  int minAngle;
+  int maxAngle;
+  int pinTrigger;
+  int angleOpenned;
+  int angleClosed;
+};
+
+GripperParam gripperParam = {0, 180, 21, 30, 150};
+
 struct RobotStateType{
   struct {
     bool MoveAngle;
@@ -91,15 +103,15 @@ JointParam joint2Param = { -360, 360, 1 , 27, 26, 25};
 JointParam joint3Param = { -360, 360, 1 , 33, 32, 0}; //Sem enable
 JointParam joint4Param = { -360, 360, 1 , 4, 16, 17};
 JointParam joint5Param = { -360, 360, 1 , 5, 18, 19};
-JointParam gripperParam = { 0, 90 };
 
 ManualMoveType Commands;
 
 MoToStepper joint1(6400, STEPDIR);
-MoToStepper joint2(8000, STEPDIR);
+MoToStepper joint2(50000, STEPDIR);
 MoToStepper joint3(20000, STEPDIR);
 MoToStepper joint4(6400, STEPDIR);
 MoToStepper joint5(6400, STEPDIR);
+MoToServo gripper;
 
 //Parameters
 StaticJsonDocument<2000> Parameters;
@@ -140,17 +152,20 @@ void setup() {
   //Configura Motor
   Serial.println("Configurando motores");
 
-  joint1.attach(join1Param.pinTrigger, join1Param.pinDir);  //14 enable
-  joint2.attach(join2Param.pinTrigger, join2Param.pinDir);  //25
-  joint3.attach(join3Param.pinTrigger, join3Param.pinDir);  //sem enable
-  joint4.attach(join4Param.pinTrigger, join4Param.pinDir);  //17
-  joint5.attach(join5Param.pinTrigger, join5Param.pinDir);    //19
+  joint1.attach(joint1Param.pinTrigger, joint1Param.pinDir);  //14 enable
+  joint2.attach(joint2Param.pinTrigger, joint2Param.pinDir);  //25 enable
+  joint3.attach(joint3Param.pinTrigger, joint3Param.pinDir);  //sem enable
+  joint4.attach(joint4Param.pinTrigger, joint4Param.pinDir);  //17 enable
+  joint5.attach(joint5Param.pinTrigger, joint5Param.pinDir);    //19 enable
+  gripper.attach(gripperParam.pinTrigger);
 
-  pinMode(join1Param.pinEnable, OUTPUT);
-  pinMode(join2Param.pinEnable, OUTPUT);
-  //pinMode(join3Param.pinEnable, OUTPUT);
-  pinMode(join4Param.pinEnable, OUTPUT);
-  pinMode(join5Param.pinEnable, OUTPUT);
+  pinMode(joint1Param.pinEnable, OUTPUT);
+  pinMode(joint2Param.pinEnable, OUTPUT);
+  //pinMode(joint3Param.pinEnable, OUTPUT);
+  pinMode(joint4Param.pinEnable, OUTPUT);
+  pinMode(joint5Param.pinEnable, OUTPUT);
+
+  EnableAllMotors();
 
   Serial.println("Finalizado as configuracoes dos motores");
 
@@ -179,6 +194,7 @@ void setup() {
 }
 
 void loop() {
+  
 
   if (RobotState.ModoOperacao.Manual) {
     ManualMove();
@@ -237,19 +253,39 @@ void ManualMove() {
   Serial.print(Commands.MoveJoint.Joint1);
   Serial.print(",Joint2:");
   Serial.print(Commands.MoveJoint.Joint2);
+  Serial.print(",Gripper:");
+  Serial.print(gripper.read());
   Serial.print(",Speed:");
   Serial.println(RobotState.Speed);
 
   if (Commands.General.DeadMan) {
     if (RobotState.MoveType.MoveJoint) {
-      MoveJointSpeed(1, Commands.MoveJoint.Joint1 * RobotState.Speed, 10);
-      MoveJointSpeed(2, Commands.MoveJoint.Joint2 * RobotState.Speed, 10);
-      MoveJointSpeed(3, Commands.MoveJoint.Joint3 * RobotState.Speed, 10);
-      MoveJointSpeed(4, Commands.MoveJoint.Joint4 * RobotState.Speed, 10);
-      MoveJointSpeed(5, Commands.MoveJoint.Joint5 * RobotState.Speed, 10);
+      MoveJointSpeed(1, Commands.MoveJoint.Joint1 * RobotState.Speed, 1);
+      MoveJointSpeed(2, Commands.MoveJoint.Joint2 * RobotState.Speed, 1);
+      MoveJointSpeed(3, Commands.MoveJoint.Joint3 * RobotState.Speed, 1);
+      MoveJointSpeed(4, Commands.MoveJoint.Joint4 * RobotState.Speed, 1);
+      MoveJointSpeed(5, Commands.MoveJoint.Joint5 * RobotState.Speed, 1);
     }
+
+    if (Commands.Gripper.Open){
+      MoveGripperPosition(gripperParam.angleOpenned, RobotState.Speed);
+    }
+
+    if (Commands.Gripper.Close){
+      MoveGripperPosition(gripperParam.angleClosed, RobotState.Speed);
+    }
+
+    if (Commands.Gripper.MoveOpen){
+      MoveGripperSpeed(RobotState.Speed);
+    }
+
+    if (Commands.Gripper.MoveClose){
+      MoveGripperSpeed(RobotState.Speed * -1);
+    }
+
   } else {
     StopAllMotors();
+    StopGripper();
   }
 }
 /************************************/
@@ -271,7 +307,6 @@ void TaskExternalProg(void *pvParameters) {
     }
   }
 }
-
 void TaskCheckComm(void *pvParameters) {
   Serial.println("Task CheckComm Iniciada");
   const TickType_t xFrequency = pdMS_TO_TICKS(300);  // ciclo de 500 ms
@@ -280,13 +315,12 @@ void TaskCheckComm(void *pvParameters) {
   while (true) {
     Commands.Telemetry.IsOnline = millis() - lastPingTime < 500;
     if (!Commands.Telemetry.IsOnline) {
-      //Commands.General.DeadMan  = false;
+      Commands.General.DeadMan  = false;
     }
 
     vTaskDelayUntil(&xLastWakeTime, xFrequency);  // delay até o próximo ciclo
   }
 }
-
 void TaskWebServerAPI(void *parameter) {
   const TickType_t xFrequency = pdMS_TO_TICKS(400);  // ciclo de 500 ms
   TickType_t xLastWakeTime = xTaskGetTickCount();    // pega o tick atual
@@ -298,7 +332,6 @@ void TaskWebServerAPI(void *parameter) {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);  // delay até o próximo ciclo
   }
 }
-
 void TaskWebSocket(void *parameter) {
   const TickType_t xFrequency = pdMS_TO_TICKS(5);  // ciclo de 500 ms
   TickType_t xLastWakeTime = xTaskGetTickCount();  // pega o tick atual
@@ -357,6 +390,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
     Commands.Gripper.Open = doc["GRIPPER"]["OPEN"];
     Commands.Gripper.Close = doc["GRIPPER"]["CLOSE"];
+    Commands.Gripper.MoveOpen = doc["GRIPPER"]["MOVE_OPEN"];
+    Commands.Gripper.MoveClose = doc["GRIPPER"]["MOVE_CLOSE"];
 
     Commands.General.DeadMan = doc["GENERAL"]["DEAD_MAN"];
     Commands.General.StartAutomatic = doc["GENERAL"]["START_AUTOMATIC"];
@@ -376,9 +411,9 @@ void APIGetRobotStatus() {
   json["DEAD_MAN"] = Commands.General.DeadMan;
   json["SPEED"] = RobotState.Speed;
 
-  json["MOVE_TYPE"]["ROTATIONAL"] = RobotState.MoveType.MoveAngle;
-  json["MOVE_TYPE"]["JOINT"] = RobotState.MoveType.MoveJoint;
-  json["MOVE_TYPE"]["LINEAR"] = RobotState.MoveType.MoveLinear;
+  json["MOVE_TYPE"]["MOVE_ANGLE"] = RobotState.MoveType.MoveAngle;
+  json["MOVE_TYPE"]["MOVE_JOINT"] = RobotState.MoveType.MoveJoint;
+  json["MOVE_TYPE"]["MOVE_LINEAR"] = RobotState.MoveType.MoveLinear;
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
@@ -579,7 +614,6 @@ void APIPostSaveExternalCode(){
 /************************************/
 
 /************* COMPILER ****************/
-
 jsval_t Wait(struct js *js, jsval_t *args, int nargs) {
   delay(js_getnum(args[0]));
   return js_mknum(0);
@@ -665,7 +699,7 @@ int ExecuteJS(const char* jsCode) {
 }
 /************************************/
 
-/************* UTILS ****************/
+/************* JOINTS ****************/
 void ReadParameters() {
   Serial.println("Reading Parameters");
   String data = readFile(SPIFFS, "/Parameters.json");
@@ -688,41 +722,48 @@ void ReadParameters() {
     }
   }
 }
-float mapFloat(float value, float minVal, float maxVal, float min, float max) {
-  return (value - minVal) * (max - min) / (maxVal - minVal) + min;
+void EnableAllMotors(){
+  for(int i = 1; i <= 5; i++){
+    EnableJoint(i);
+  }
+}
+void DisableAllMotors(){
+  for(int i = 1; i <= 5; i++){
+    DisableJoint(i);
+  }
 }
 void EnableJoint(int index) {
   if (index == 1) {
-    digitalWrite(join1Param.pinEnable, LOW);
+    digitalWrite(joint1Param.pinEnable, LOW);
   }
   if (index == 2) {
-    digitalWrite(join2Param.pinEnable, LOW);
+    digitalWrite(joint2Param.pinEnable, LOW);
   }
   //if (index == 3) {
   //  digitalWrite(join3Param.pinEnable, LOW);
   //}
   if (index == 4) {
-    digitalWrite(join4Param.pinEnable, LOW);
+    digitalWrite(joint4Param.pinEnable, LOW);
   }
   if (index == 5) {
-    digitalWrite(join5Param.pinEnable, LOW);
+    digitalWrite(joint5Param.pinEnable, LOW);
   }
 }
 void DisableJoint(int index) {
   if (index == 1) {
-    digitalWrite(join1Param.pinEnable, HIGH);
+    digitalWrite(joint1Param.pinEnable, HIGH);
   }
   if (index == 2) {
-    digitalWrite(join2Param.pinEnable, HIGH);
+    digitalWrite(joint2Param.pinEnable, HIGH);
   }
   //if (index == 3) {
-  //  digitalWrite(join3Param.pinEnable, HIGH);
+  //  digitalWrite(joint3Param.pinEnable, HIGH);
   //}
   if (index == 4) {
-    digitalWrite(join4Param.pinEnable, HIGH);
+    digitalWrite(joint4Param.pinEnable, HIGH);
   }
   if (index == 5) {
-    digitalWrite(join5Param.pinEnable, HIGH);
+    digitalWrite(joint5Param.pinEnable, HIGH);
   }
 }
 void StopAllMotors() {
@@ -731,6 +772,11 @@ void StopAllMotors() {
   }
 }
 void StopMotor(int index) {
+  // if (!IsJointMoving(index))
+  // {
+  //   return;
+  // }
+
   if (index == 1) {
     joint1.rotate(0);
   }
@@ -757,6 +803,7 @@ void EmergencyStop() {
   joint3.stop();
   joint4.stop();
   joint5.stop();
+  StopGripper();
 }
 void MoveJointSpeed(int index, float speed, int ramp) {
   bool direction = speed > 0;
@@ -842,6 +889,11 @@ void MoveJointSpeed(int index, float speed, int ramp) {
   }
 }
 void MoveJointPosition(int index, long position, float speed, int ramp) {
+  if (speed == 0){
+    StopMotor(index);
+    return;
+  }
+
   if (index == 1) {
     if (joint1.currentPosition() != position) {
       joint1.setSpeed(speed * 10);
@@ -915,6 +967,22 @@ bool IsJointMoving(int joint) {
     return joint1.moving() != 0;
   }
 
+  if (joint == 2) {
+    return joint2.moving() != 0;
+  }
+
+  if (joint == 3) {
+    return joint3.moving() != 0;
+  }
+
+  if (joint == 4) {
+    return joint4.moving() != 0;
+  }
+
+  if (joint == 5) {
+    return joint5.moving() != 0;
+  }
+
   return false;
 }
 void ResetJointPosition(int index) {
@@ -922,7 +990,48 @@ void ResetJointPosition(int index) {
     joint1.setZero();
   }
 }
-void ResetGripperPosition() {
+/************************************/
+
+/************* GRIPPER ****************/
+void StopGripper(){
+  return;
+  gripper.write(gripper.read());
+}
+void MoveGripperPosition(long position, float speed){
+  if (speed == 0){
+    StopGripper();
+    return;
+  }
+
+  if (GripperGetCurrentAngle() != position) {
+    gripper.setSpeed(speed);
+    gripper.write(range(position, gripperParam.minAngle, gripperParam.maxAngle));
+  }
+}
+void MoveGripperSpeed(float speed){
+  MoveGripperPosition(GripperGetCurrentAngle() + (speed > 0 ? 1 : -1), speed); //Soma 1 na posição atual
+}
+byte GripperGetCurrentAngle(){
+  return gripper.read();
+}
+bool IsGripperMoving(){
+  return gripper.moving() != 0;
+}
+bool GripperOpenned(){
+  return gripper.read() == gripperParam.angleOpenned;
+}
+bool GripperClosed(){
+  return gripper.read() == gripperParam.angleClosed;
+}
+bool ResetGripperPosition(){
+  gripper.detach();
+  gripper.attach(gripperParam.pinTrigger);
+}
+/************************************/
+
+/************* UTILS ****************/
+float mapFloat(float value, float minVal, float maxVal, float min, float max) {
+  return (value - minVal) * (max - min) / (maxVal - minVal) + min;
 }
 bool InnerRange(long value, long min, long max) {
   return true;

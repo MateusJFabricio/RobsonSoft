@@ -9,21 +9,21 @@ const MoveType = () => {
     useEffect(() => {
     if (robotStatus !== null){
 
-        if (!robotStatus.MOVE_TYPE.LINEAR && 
-            !robotStatus.MOVE_TYPE.JOINT &&
-            !robotStatus.MOVE_TYPE.ROTATIONAL){
+        if (!robotStatus.MOVE_TYPE.MOVE_LINEAR && 
+            !robotStatus.MOVE_TYPE.MOVE_JOINT &&
+            !robotStatus.MOVE_TYPE.MOVE_ANGLE){
                 setTexto("TIPO MOV")
             }
 
-        if (robotStatus.MOVE_TYPE.LINEAR){
+        if (robotStatus.MOVE_TYPE.MOVE_LINEAR){
             setTexto("LINEAR")
         }
 
-        if (robotStatus.MOVE_TYPE.JOINT){
+        if (robotStatus.MOVE_TYPE.MOVE_JOINT){
             setTexto("JOINT")
         }
 
-        if (robotStatus.MOVE_TYPE.ROTATIONAL){
+        if (robotStatus.MOVE_TYPE.MOVE_ANGLE){
             setTexto("ROTACIONAL")
         }
     }

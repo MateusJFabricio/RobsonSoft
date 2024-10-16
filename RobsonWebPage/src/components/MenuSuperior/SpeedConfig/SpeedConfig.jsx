@@ -11,7 +11,6 @@ const SpeedConfig = () => {
     }
 
      useEffect(() => {
-      console.log(robotStatus)
       setSpeed(robotStatus.SPEED)
     }, [robotStatus])
     

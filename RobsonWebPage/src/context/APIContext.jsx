@@ -46,7 +46,7 @@ export const ApiContextProvider = ({children})=>{
         if(joystickRef.current !== null){
           if (connectionStatusRef.current === 'Open'){
             let ctrlData = controlDataRef.current;
-            console.log(ctrlData.GENERAL.DEAD_MAN)
+            console.log(ctrlData.MOVE_JOINT.JOINT3)
             sendMessage(JSON.stringify(ctrlData));
           }
         }
@@ -57,7 +57,7 @@ export const ApiContextProvider = ({children})=>{
       }
     }, [])
 
-    useEffect(() => {
+    /* useEffect(() => {
       const interval = setInterval(()=>{
         if (connectionStatusRef.current === 'Open'){
           sendMessage(JSON.stringify({lifebit: true}))
@@ -67,7 +67,7 @@ export const ApiContextProvider = ({children})=>{
       return () =>{ 
         clearInterval(interval)
       }
-    }, [])  
+    }, []) */  
 
     useEffect(() => {
       joystickRef.current = joystick;
