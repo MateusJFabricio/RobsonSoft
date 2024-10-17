@@ -1,6 +1,6 @@
 import React from 'react'
 
-const MenuLateralItem = ({text, icon, isSelected, buttonClick}) => {
+const MenuLateralItem = ({children, text, icon, isSelected, buttonClick}) => {
   return (
     <div style={{display: 'flex',justifyContent: 'left', alignItems: 'center',height: '45px',fontSize: '20px'}}>
         <button style={
@@ -18,7 +18,7 @@ const MenuLateralItem = ({text, icon, isSelected, buttonClick}) => {
                 borderRadius: '10px'
             }
             } onClick={buttonClick}>
-            <img src={icon} alt="icon"/>
+            {children}
             {text}
         </button>
     </div>

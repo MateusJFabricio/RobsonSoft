@@ -86,21 +86,21 @@ export const RobotStatusContextProvider = ({children})=>{
 
       return {
         MOVE_ANGLE:{
-            MOVE_X: joystickRef.current.axes[0],
-            MOVE_Y: joystickRef.current.axes[1] * -1,
-            MOVE_Z: joystickRef.current.axes[2],
+            MOVE_X: joystickRef.current.axes[0].toFixed(2),
+            MOVE_Y: joystickRef.current.axes[1].toFixed(2) * -1,
+            MOVE_Z: joystickRef.current.axes[2].toFixed(2),
         },
         MOVE_LINEAR:{
-            MOVE_X: joystickRef.current.axes[0],
-            MOVE_Y: joystickRef.current.axes[1] * -1,
-            MOVE_Z: joystickRef.current.axes[2],
+            MOVE_X: joystickRef.current.axes[0].toFixed(2),
+            MOVE_Y: joystickRef.current.axes[1].toFixed(2) * -1,
+            MOVE_Z: joystickRef.current.axes[2].toFixed(2),
         },
         MOVE_JOINT: {
             JOINT1: getAxis1Value(),
             JOINT2: joystickRef.current.axes[0].toFixed(2),
-            JOINT3: joystickRef.current.axes[1] * -1,
-            JOINT4: joystickRef.current.axes[2],
-            JOINT5: joystickRef.current.axes[3] * -1,
+            JOINT3: joystickRef.current.axes[1].toFixed(2) * -1,
+            JOINT4: joystickRef.current.axes[2].toFixed(2),
+            JOINT5: joystickRef.current.axes[3].toFixed(2) * -1,
         },
         GRIPPER: {
             OPEN: joystickRef.current.buttons[14].pressed,

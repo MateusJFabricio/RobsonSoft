@@ -22,7 +22,7 @@ export const ApiContextProvider = ({children})=>{
           return true;
         },
         heartbeat: true,
-        reconnectAttempts: 2,
+        reconnectAttempts: 1,
         reconnectInterval: 1000,
       });
     

@@ -10,6 +10,8 @@ import ControlRobot from './pages/ControlRobot/ControlRobot.jsx'
 import SoftwarePage from './pages/Software/SoftwarePage.jsx'
 import ConfiguracaoPage from './pages/ConfiguracaoPage/ConfiguracaoPage.jsx'
 import { RobotStatusContextProvider } from './context/RobotStatusContext.jsx'
+import BackupRestorePage from './pages/BackupRestorePage/BackupRestorePage.jsx'
+import CommPLCPage from './pages/CommPLCPage/CommPLCPage.jsx'
 
 const router = createBrowserRouter([
   {
@@ -31,6 +33,14 @@ const router = createBrowserRouter([
         {
           path: "/configuracao",
           element: <ConfiguracaoPage/>
+        },
+        {
+          path: "/backup",
+          element: <BackupRestorePage/>
+        },
+        {
+          path: "/communication",
+          element: <CommPLCPage/>
         },
         {
           path: "/software",

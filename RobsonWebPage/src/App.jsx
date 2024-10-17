@@ -11,6 +11,7 @@ import DeadMan from './components/MenuSuperior/DeadMan/DeadMan';
 import MoveType from './components/MenuSuperior/MoveType/MoveType';
 import OperationMode from './components/MenuSuperior/OperationMode/OperationMode';
 import SpeedConfig from './components/MenuSuperior/SpeedConfig/SpeedConfig';
+import ShowInfo from './components/MenuSuperior/ShowInfo/ShowInfo';
 
 function App() {
 
@@ -21,6 +22,7 @@ function App() {
             <MenuLateral/>
             <div style={{width: '100%'}}>
               <MenuSuperior>
+                <ShowInfo/>
                 <DeadMan/>
                 <MoveType/>
                 <OperationMode/>

@@ -98,19 +98,19 @@ struct RobotStateType{
 
 RobotStateType RobotState;
 
-JointParam joint1Param = { -360, 360, 1 , 13, 12, 14};
-JointParam joint2Param = { -360, 360, 1 , 27, 26, 25};
-JointParam joint3Param = { -360, 360, 1 , 33, 32, 0}; //Sem enable
-JointParam joint4Param = { -360, 360, 1 , 4, 16, 17};
-JointParam joint5Param = { -360, 360, 1 , 5, 18, 19};
+JointParam joint1Param = { -360, 360, 15.0 / 160.0  , 13, 12, 14};
+JointParam joint2Param = { -360, 360, 21.4 / 120.0  , 27, 26, 25};
+JointParam joint3Param = { -360, 360, (21.4 / 95.0) / 5.0   , 33, 32, 0}; //Sem enable
+JointParam joint4Param = { -360, 360, 1             , 4, 16.0, 17};
+JointParam joint5Param = { -360, 360, 15.0 / 70.0   , 5, 18, 19};
 
 ManualMoveType Commands;
 
 MoToStepper joint1(6400, STEPDIR);
-MoToStepper joint2(50000, STEPDIR);
-MoToStepper joint3(20000, STEPDIR);
-MoToStepper joint4(6400, STEPDIR);
-MoToStepper joint5(6400, STEPDIR);
+MoToStepper joint2(6400, STEPDIR);
+MoToStepper joint3(8000, STEPDIR);
+MoToStepper joint4(20000, STEPDIR);
+MoToStepper joint5(20000, STEPDIR);
 MoToServo gripper;
 
 //Parameters
@@ -177,6 +177,7 @@ void setup() {
   server.enableCORS();
   server.on("/getRobotStatus", APIGetRobotStatus);
   server.on("/getJointAngles", APIGetJointAngles);
+  server.on("/getJointLimits", APIGetJointLimits);
   server.on("/postJointCalibration", HTTP_POST, APIPostJointCalibration);
   server.on("/postJointLimits", HTTP_POST, APIPostJointLimits);
   server.on("/postRobotState", HTTP_POST, APIPostRobotState);
@@ -251,10 +252,14 @@ void ManualMove() {
   Serial.print(RobotState.MoveType.MoveJoint);
   Serial.print(",Joint1:");
   Serial.print(Commands.MoveJoint.Joint1);
+  Serial.print(",Joint1Position:");
+  Serial.print(GetCurrentAngle(1));
   Serial.print(",Joint2:");
   Serial.print(Commands.MoveJoint.Joint2);
   Serial.print(",Gripper:");
   Serial.print(gripper.read());
+  Serial.print(",ConvSpeedJ1:");
+  Serial.print(ConvertSpeed(Commands.MoveJoint.Joint1 * RobotState.Speed, joint1Param.jointRatio));
   Serial.print(",Speed:");
   Serial.println(RobotState.Speed);
 
@@ -425,11 +430,39 @@ void APIGetJointAngles() {
   jsonDocument.clear();  // Clear json buffer
   JsonObject json = jsonDocument.to<JsonObject>();
   json["Joint1"] = GetCurrentAngle(1);
-  json["Joint2"] = 0;
-  json["Joint3"] = 0;
-  json["Joint4"] = 0;
-  json["Joint5"] = 0;
-  json["Gripper"] = 0;
+  json["Joint2"] = GetCurrentAngle(2);
+  json["Joint3"] = GetCurrentAngle(3);
+  json["Joint4"] = GetCurrentAngle(4);
+  json["Joint5"] = GetCurrentAngle(5);
+  json["Gripper"] = GripperGetCurrentAngle();
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
+void APIGetJointLimits() {
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear();  // Clear json buffer
+  JsonObject json = jsonDocument.to<JsonObject>();
+
+  json["Joint1"]["MinAngle"] = joint1Param.minAngle;
+  json["Joint1"]["MaxAngle"] = joint1Param.maxAngle;
+
+  json["Joint2"]["MinAngle"] = joint2Param.minAngle;
+  json["Joint2"]["MaxAngle"] = joint2Param.maxAngle;
+
+  json["Joint3"]["MinAngle"] = joint3Param.minAngle;
+  json["Joint3"]["MaxAngle"] = joint3Param.maxAngle;
+
+  json["Joint4"]["MinAngle"] = joint4Param.minAngle;
+  json["Joint4"]["MaxAngle"] = joint4Param.maxAngle;
+
+  json["Joint5"]["MinAngle"] = joint5Param.minAngle;
+  json["Joint5"]["MaxAngle"] = joint5Param.maxAngle;
+
+  json["Gripper"]["MinAngle"] = gripperParam.minAngle;
+  json["Gripper"]["MaxAngle"] = gripperParam.maxAngle;
 
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
@@ -478,12 +511,6 @@ void APIPostJointCalibration() {
     if (doc.containsKey("Joint5")) {
       if (doc["Joint5"]) {
         ResetJointPosition(5);
-      }
-    }
-
-    if (doc.containsKey("Gripper")) {
-      if (doc["Gripper"]) {
-        ResetGripperPosition();
       }
     }
 
@@ -554,6 +581,35 @@ void APIPostJointLimits() {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
   }
 }
+void APIPostGripperPosition(){
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+    
+    gripperParam.angleOpenned = doc["Gripper"]["PosOpen"];
+    gripperParam.angleClosed = doc["Gripper"]["PosClose"];
+    Parameters["GripperParam"] = doc["Gripper"];
+
+    SaveParameters();
+
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
 void APIPostRobotState() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");  // Recebe o corpo da requisição
@@ -614,16 +670,22 @@ void APIPostSaveExternalCode(){
 /************************************/
 
 /************* COMPILER ****************/
-jsval_t Wait(struct js *js, jsval_t *args, int nargs) {
+jsval_t WaitTime(struct js *js, jsval_t *args, int nargs) {
   delay(js_getnum(args[0]));
   return js_mknum(0);
 }
 jsval_t OpenGripper(struct js *js, jsval_t *args, int nargs) {
-  
+  MoveGripperPosition(gripperParam.angleOpenned, RobotState.Speed);
+  while(!GripperOpenned()){
+    delay(1);
+  }
   return js_mknum(0);
 }
 jsval_t CloseGripper(struct js *js, jsval_t *args, int nargs) {
-  
+  MoveGripperPosition(gripperParam.angleClosed, RobotState.Speed);
+  while(!GripperClosed()){
+    delay(1);
+  }
   return js_mknum(0);
 }
 jsval_t SetAprox(struct js *js, jsval_t *args, int nargs) {
@@ -651,7 +713,7 @@ jsval_t MoveJ(struct js *js, jsval_t *args, int nargs) {
 
   //Move para o ponto todos os motores
   for(int i = 0; i < 6; i++){
-    MoveJointPosition(i+1, args[i], CompilerData.Speed, CompilerData.Aceleracao);
+    MoveJointPosition(i+1, args[i], CompilerData.Speed);
   }
 
   //Aguarda o movimento estar finalizado
@@ -691,7 +753,7 @@ int ExecuteJS(const char* jsCode) {
   js_set(js, global, "SetAprox", js_mkfun(SetAprox));
   js_set(js, global, "OpenGripper", js_mkfun(OpenGripper));
   js_set(js, global, "CloseGripper", js_mkfun(CloseGripper));
-  js_set(js, global, "Wait", js_mkfun(Wait));
+  js_set(js, global, "WaitTime", js_mkfun(WaitTime));
 
   // Executa o código JS
   jsval_t v = js_eval(js, jsCode, ~0U);
@@ -700,28 +762,6 @@ int ExecuteJS(const char* jsCode) {
 /************************************/
 
 /************* JOINTS ****************/
-void ReadParameters() {
-  Serial.println("Reading Parameters");
-  String data = readFile(SPIFFS, "/Parameters.json");
-
-  if (data == "") {
-    Serial.println("Parameters not found!");
-
-    Parameters["param1"] = 1.0;
-
-    char buffer[2000];
-    serializeJson(Parameters, buffer);
-    writeFile(SPIFFS, "/Parameters.json", buffer);
-  } else {
-    DeserializationError error = deserializeJson(Parameters, data);
-
-    if (error) {
-      Serial.println("Erro ao ler os Parametros do Drone");
-    } else {
-      Serial.println("Parameters read with success");
-    }
-  }
-}
 void EnableAllMotors(){
   for(int i = 1; i <= 5; i++){
     EnableJoint(i);
@@ -819,7 +859,7 @@ void MoveJointSpeed(int index, float speed, int ramp) {
 
   if (index == 1) {
     joint1.setRampLen(ramp);
-    joint1.setSpeed(speed * 10);
+    joint1.setSpeed(ConvertSpeed(speed, joint1Param.jointRatio));
     
     if (InnerRange(GetCurrentAngle(1), joint1Param.minAngle, joint1Param.maxAngle)) {
       joint1.rotate(direction ? 1 : -1);
@@ -834,7 +874,7 @@ void MoveJointSpeed(int index, float speed, int ramp) {
 
   if (index == 2) {
     joint2.setRampLen(ramp);
-    joint2.setSpeed(speed * 10);
+    joint2.setSpeed(ConvertSpeed(speed, joint2Param.jointRatio));
     if (InnerRange(GetCurrentAngle(2), joint2Param.minAngle, joint2Param.maxAngle)) {
       joint2.rotate(direction ? 1 : -1);
     } else if (GetCurrentAngle(2) > joint2Param.maxAngle && direction < 0) {
@@ -848,7 +888,7 @@ void MoveJointSpeed(int index, float speed, int ramp) {
 
   if (index == 3) {
     joint3.setRampLen(ramp);
-    joint3.setSpeed(speed * 10);
+    joint3.setSpeed(ConvertSpeed(speed, joint3Param.jointRatio));
     if (InnerRange(GetCurrentAngle(3), joint3Param.minAngle, joint3Param.maxAngle)) {
       joint3.rotate(direction ? 1 : -1);
     } else if (GetCurrentAngle(3) > joint3Param.maxAngle && direction < 0) {
@@ -862,7 +902,7 @@ void MoveJointSpeed(int index, float speed, int ramp) {
 
   if (index == 4) {
     joint4.setRampLen(ramp);
-    joint4.setSpeed(speed * 10);
+    joint4.setSpeed(ConvertSpeed(speed, joint4Param.jointRatio));
     if (InnerRange(GetCurrentAngle(4), joint4Param.minAngle, joint4Param.maxAngle)) {
       joint4.rotate(direction ? 1 : -1);
     } else if (GetCurrentAngle(4) > joint4Param.maxAngle && direction < 0) {
@@ -876,7 +916,7 @@ void MoveJointSpeed(int index, float speed, int ramp) {
 
   if (index == 5) {
     joint5.setRampLen(ramp);
-    joint5.setSpeed(speed * 10);
+    joint5.setSpeed(ConvertSpeed(speed, joint5Param.jointRatio));
     if (InnerRange(GetCurrentAngle(5), joint5Param.minAngle, joint5Param.maxAngle)) {
       joint5.rotate(direction ? 1 : -1);
     } else if (GetCurrentAngle(5) > joint5Param.maxAngle && direction < 0) {
@@ -888,71 +928,82 @@ void MoveJointSpeed(int index, float speed, int ramp) {
     }
   }
 }
-void MoveJointPosition(int index, long position, float speed, int ramp) {
+void MoveJointPosition(int index, float position, float speed) {
+  int ramp = 1;
+
   if (speed == 0){
     StopMotor(index);
     return;
   }
 
   if (index == 1) {
-    if (joint1.currentPosition() != position) {
-      joint1.setSpeed(speed * 10);
+    if (GetCurrentAngle(1) != position) {
+      joint1.setSpeed(ConvertSpeed(speed,joint1Param.jointRatio));
       joint1.setRampLen(ramp);
       joint1.write(range(position * joint1Param.jointRatio, joint1Param.minAngle, joint1Param.maxAngle));
     }
   }
 
   if (index == 2) {
-    if (joint2.currentPosition() != position) {
-      joint2.setSpeed(speed * 10);
+    if (GetCurrentAngle(2) != position) {
+      joint2.setSpeed(ConvertSpeed(speed, joint2Param.jointRatio));
       joint2.setRampLen(ramp);
       joint2.write(range(position * joint2Param.jointRatio, joint2Param.minAngle, joint2Param.maxAngle));
     }
   }
 
   if (index == 3) {
-    if (joint3.currentPosition() != position) {
-      joint3.setSpeed(speed * 10);
+    if (GetCurrentAngle(3) != position) {
+      joint3.setSpeed(ConvertSpeed(speed, joint3Param.jointRatio));
       joint3.setRampLen(ramp);
       joint3.write(range(position * joint3Param.jointRatio, joint3Param.minAngle, joint3Param.maxAngle));
     }
   }
 
   if (index == 4) {
-    if (joint4.currentPosition() != position) {
-      joint4.setSpeed(speed * 10);
+    if (GetCurrentAngle(4) != position) {
+      joint4.setSpeed(ConvertSpeed(speed, joint4Param.jointRatio));
       joint4.setRampLen(ramp);
       joint4.write(range(position * joint4Param.jointRatio, joint4Param.minAngle, joint4Param.maxAngle));
     }
   }
 
   if (index == 5) {
-    if (joint5.currentPosition() != position) {
-      joint5.setSpeed(speed * 10);
+    if (GetCurrentAngle(5) != position) {
+      joint5.setSpeed(ConvertSpeed(speed, joint5Param.jointRatio));
       joint5.setRampLen(ramp);
       joint5.write(range(position * joint5Param.jointRatio, joint5Param.minAngle, joint5Param.maxAngle));
     }
   }
 }
-long GetCurrentAngle(int joint) {
+float ConvertSpeed(float speedPorCento, float axisRatio){
+  float maxSpeed = 45; //°/s max
+
+  float speed = speedPorCento / 100 * maxSpeed; //Converte porcentagem da velocidade
+  speed = (speed * 60/*segundos*/)/360.0/*graus*/;  //converte para RPM
+  speed = speed * 10; //Constante da biblioteca
+  speed = speed / axisRatio;
+  return speed; //Multiplica pela razão da polia com o eixo
+}
+float GetCurrentAngle(int joint) {
   if (joint == 1) {
-    return joint1.read() * joint1Param.jointRatio;
+    return ((float) joint1.read()) * joint1Param.jointRatio;
   }
 
   if (joint == 2) {
-    return joint2.read() * joint2Param.jointRatio;
+    return ((float) joint2.read()) * joint2Param.jointRatio;
   }
 
   if (joint == 3) {
-    return joint3.read() * joint3Param.jointRatio;
+    return ((float) joint3.read()) * joint3Param.jointRatio;
   }
 
   if (joint == 4) {
-    return joint4.read() * joint4Param.jointRatio;
+    return ((float) joint4.read()) * joint4Param.jointRatio;
   }
 
   if (joint == 5) {
-    return joint5.read() * joint5Param.jointRatio;
+    return ((float) joint5.read()) * joint5Param.jointRatio;
   }
 
   return 0;
@@ -988,6 +1039,22 @@ bool IsJointMoving(int joint) {
 void ResetJointPosition(int index) {
   if (index == 1) {
     joint1.setZero();
+  }
+
+  if (index == 2) {
+    joint2.setZero();
+  }
+
+  if (index == 3) {
+    joint3.setZero();
+  }
+
+  if (index == 4) {
+    joint4.setZero();
+  }
+
+  if (index == 5) {
+    joint5.setZero();
   }
 }
 /************************************/
@@ -1030,6 +1097,48 @@ bool ResetGripperPosition(){
 /************************************/
 
 /************* UTILS ****************/
+void ReadParameters() {
+  Serial.println("Reading Parameters");
+  String data = readFile(SPIFFS, "/Parameters.json");
+
+  if (data == "") {
+    Serial.println("Parameters not found!");
+
+    char buffer[2000];
+    serializeJson(Parameters, buffer);
+    writeFile(SPIFFS, "/Parameters.json", buffer);
+  } else {
+    DeserializationError error = deserializeJson(Parameters, data);
+
+    if (error) {
+      Serial.println("Erro ao ler os Parametros do Robo");
+    } else {
+      Serial.println("Parameters read with success");
+    }
+
+    if (Parameters.containsKey("GripperParam")){
+      gripperParam.minAngle = Parameters["GripperParam"]["MinAngle"];
+      gripperParam.maxAngle = Parameters["Gripper"]["MaxAngle"];
+      gripperParam.angleClosed = Parameters["Gripper"]["PosClose"];
+      gripperParam.angleOpenned = Parameters["Gripper"]["PosOpen"];
+
+      joint1Param.minAngle = Parameters["Joint1Param"]["MinAngle"];
+      joint1Param.maxAngle = Parameters["Joint1Param"]["MaxAngle"];
+
+      joint2Param.minAngle = Parameters["Joint2Param"]["MinAngle"];
+      joint2Param.maxAngle = Parameters["Joint2Param"]["MaxAngle"];
+
+      joint3Param.minAngle = Parameters["Joint3Param"]["MinAngle"];
+      joint3Param.maxAngle = Parameters["Joint3Param"]["MaxAngle"];
+
+      joint4Param.minAngle = Parameters["Joint4Param"]["MinAngle"];
+      joint4Param.maxAngle = Parameters["Joint4Param"]["MaxAngle"];
+
+      joint5Param.minAngle = Parameters["Joint5Param"]["MinAngle"];
+      joint5Param.maxAngle = Parameters["Joint5Param"]["MaxAngle"];
+    }
+  }
+}
 float mapFloat(float value, float minVal, float maxVal, float min, float max) {
   return (value - minVal) * (max - min) / (maxVal - minVal) + min;
 }
@@ -1037,7 +1146,7 @@ bool InnerRange(long value, long min, long max) {
   return true;
   return value > min && value < max;
 }
-int range(int value, int min, int max) {
+float range(float value, float min, float max) {
   if (value < min) {
     value = min;
   }

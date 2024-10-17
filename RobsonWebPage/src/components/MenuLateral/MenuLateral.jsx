@@ -8,6 +8,10 @@ import Logo from '../../assets/robotic-arm.png'
 import ProjectIcon from '../../assets/project-icon.svg'
 import SoftwareIcon from '../../assets/software-icon.svg'
 import MenuLateralCategoria from '../MenuLateralCategoria/MenuLateralCategoria';
+import { FaGithub } from "react-icons/fa6";
+import { VscSaveAll,VscSettingsGear  } from "react-icons/vsc";
+import { TbManualGearbox,TbCodeCircle2  } from "react-icons/tb";
+import { GiRobotAntennas,GiSatelliteCommunication } from "react-icons/gi";
 
 const MenuLateral = () => {
     const navigate = useNavigate()
@@ -16,6 +20,8 @@ const MenuLateral = () => {
     const [controlSelected, setControlSelected] = useState(false)
     const [projectSelected, setProjectSelected] = useState(false)
     const [softwareSelected, setSoftwareSelected] = useState(false)
+    const [backupRestoreSelected, setBackupRestoreSelected] = useState(false)
+    const [commSelected, setCommSelected] = useState(false)
 
     const handleFlyClick = ()=>{
         navigate("/Fly")
@@ -27,6 +33,8 @@ const MenuLateral = () => {
         setControlSelected(false)
         setProjectSelected(false)
         setSoftwareSelected(false)
+        setBackupRestoreSelected(false)
+        setCommSelected(false)
         navigate("/")
     }
 
@@ -36,6 +44,8 @@ const MenuLateral = () => {
         setControlSelected(false)
         setProjectSelected(false)
         setSoftwareSelected(false)
+        setBackupRestoreSelected(false)
+        setCommSelected(false)
         navigate("/configuracao")
     }
 
@@ -45,7 +55,20 @@ const MenuLateral = () => {
         setControlSelected(true)
         setProjectSelected(false)
         setSoftwareSelected(false)
+        setBackupRestoreSelected(false)
+        setCommSelected(false)
         navigate("/control")
+    }
+
+    const communicationClick = ()=>{
+        setHomeSelected(false)
+        setConfigSelected(false)
+        setControlSelected(false)
+        setProjectSelected(false)
+        setSoftwareSelected(false)
+        setBackupRestoreSelected(false)
+        setCommSelected(true)
+        navigate("/communication")
     }
 
     const softwareClick = ()=>{
@@ -54,7 +77,20 @@ const MenuLateral = () => {
         setControlSelected(false)
         setProjectSelected(false)
         setSoftwareSelected(true)
+        setBackupRestoreSelected(false)
+        setCommSelected(false)
         navigate("/software")
+    }
+
+    const backupRestoreClick = ()=>{
+        setHomeSelected(false)
+        setConfigSelected(false)
+        setControlSelected(false)
+        setProjectSelected(false)
+        setSoftwareSelected(false)
+        setBackupRestoreSelected(true)
+        setCommSelected(false)
+        navigate("/backup")
     }
 
     const projectClick = ()=>{
@@ -63,6 +99,8 @@ const MenuLateral = () => {
         setControlSelected(false)
         setProjectSelected(true)
         setSoftwareSelected(false)
+        setBackupRestoreSelected(false)
+        setCommSelected(false)
     }
   return (
     <>
@@ -92,13 +130,29 @@ const MenuLateral = () => {
                      RobsonSoft
                 </div>
                 <MenuLateralCategoria text={"View"}>
-                    <MenuLateralItem text={"Home"} icon={HomeIcon} isSelected={homeSelected} buttonClick={homeClick}/>
-                    <MenuLateralItem text={"Software"} icon={SoftwareIcon} isSelected={softwareSelected} buttonClick={softwareClick}/>
-                    <MenuLateralItem text={"Configuração"} icon={ConfigIcon} isSelected={configSelected} buttonClick={configClick}/>
+                    <MenuLateralItem text={"Home"} isSelected={homeSelected} buttonClick={homeClick}>
+                        <GiRobotAntennas />
+                    </MenuLateralItem>
+                    <MenuLateralItem text={"Software"} isSelected={softwareSelected} buttonClick={softwareClick}>
+                        <TbCodeCircle2 />  
+                    </MenuLateralItem>
+                    <MenuLateralItem text={"Configuração"}isSelected={configSelected} buttonClick={configClick}>
+                        <VscSettingsGear />
+                    </MenuLateralItem>
+                    <MenuLateralItem text={"Comunicação PLC"} isSelected={commSelected} buttonClick={communicationClick}>
+                        <GiSatelliteCommunication />
+                    </MenuLateralItem>
+                    <MenuLateralItem text={"Controle"} isSelected={controlSelected} buttonClick={controlClick}>
+                        <TbManualGearbox />
+                    </MenuLateralItem>
                 </MenuLateralCategoria>
-                <MenuLateralCategoria text={"Outras Coisas"} icon={HomeIcon}>
-                    <MenuLateralItem text={"Controle"} icon={ControlIcon} isSelected={controlSelected} buttonClick={controlClick}/>
-                    <MenuLateralItem text={"Projeto"} icon={ProjectIcon} isSelected={projectSelected} buttonClick={projectClick}/>
+                <MenuLateralCategoria text={"Outras Coisas"}>
+                    <MenuLateralItem text={"Backup/Restore"} isSelected={backupRestoreSelected} buttonClick={backupRestoreClick}>
+                        <VscSaveAll />
+                    </MenuLateralItem>
+                    <MenuLateralItem text={"Projeto"} isSelected={projectSelected} buttonClick={projectClick}>
+                        <FaGithub />
+                    </MenuLateralItem>
                 </MenuLateralCategoria>
             </div>
         </div>
