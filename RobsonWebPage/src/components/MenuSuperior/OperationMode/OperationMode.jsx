@@ -11,7 +11,7 @@ const OperationMode = () => {
 
         if (!robotStatus.MODO_OPERACAO.MANUAL && 
             !robotStatus.MODO_OPERACAO.MANUAL_CEM &&
-            !robotStatus.MODO_OPERACAO.AUTOMATICO){
+            !robotStatus.MODO_OPERACAO.AUTO){
                 setTexto("MODO")
             }
 
@@ -23,7 +23,7 @@ const OperationMode = () => {
             setTexto("MANUAL 100%")
         }
 
-        if (robotStatus.MODO_OPERACAO.AUTOMATICO){
+        if (robotStatus.MODO_OPERACAO.AUTO){
             setTexto("AUTO")
         }
     }

@@ -7,7 +7,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import {androidstudio} from '@uiw/codemirror-theme-androidstudio';
 
-const BlockyCustom = () => {
+const BlockyCustom = ({handleScriptChanged}) => {
     const scriptRef = createRef("");
     const [xml, setXml] = useState('');
     const [javascriptCode, setJavascriptCode] = useState(
@@ -15,18 +15,21 @@ const BlockyCustom = () => {
 /*
   Funcões predefinidas:
     MoveJ(j1, j2, j3, j4, j5);
-    Wait(millisegundos);
+    WaitTime(millisegundos);
     OpenGripper();
     CloseGripper();
     SetAprox(valor);
     SetSpeed(valor);
+    PLCReadEvent(1); Numero do evento de 1 a 16
+    PLCSetOrdem(1); Numero da ordem de 1 a 16
+    PLCResetOrdem(1); Numero da ordem de 1 a 16
 */
 
 function Trajetoria(){
   OpenGripper();
   MoveJ(20, 0, 0, 0, 90);
   CloseGripper();
-  Wait(1000);
+  WaitTime(1000);
   MoveJ(20, 10, 10, 10, 10);
 }
 
@@ -49,6 +52,7 @@ Trajetoria();`);
     
     const onChange = React.useCallback((val, viewUpdate) => {
       setJavascriptCode(val);
+      handleScriptChanged(val);
     }, []);
 
   return (

@@ -1,18 +1,23 @@
-#include <WiFi.h>
-#include <WebServer.h>
-#include <WebSocketsServer.h>
-#include <ArduinoJson.h>
-#include <AsyncTCP.h>
-#include <SPIFFS.h>
-#include <Wire.h>
-#include <ESPmDNS.h>
-#include <MobaTools.h>
+#include <WiFi.h>              //Wifi control
+#include <WebServer.h>         //API
+#include <WebSocketsServer.h>  //Web Socker server
+#include <ArduinoJson.h>       //JSON
+#include <AsyncTCP.h>          //TPC Comm
+#include <SPIFFS.h>            //Write and Read file
+#include <Wire.h>              //
+#include <ESPmDNS.h>           //DNS
+#include <MobaTools.h>         //StepMotors and Servo
+#include <Platform.h>          //PLC Comm
+#include "Settimino.h"         //PLC Comm
+#include "elk.h"               //Compilador
 
-#include "elk.h"
-struct CompilerDataType{
+struct CompilerDataType {
   int Speed;
   int Aceleracao;
-  long Aproximacao; //Famoso zoneamento
+  long Aproximacao;  //Famoso zoneamento
+  bool Ordem[16];
+  bool Evento[16];
+  uint16_t ProgNum;
   bool PlayCode;
   String Code;
 };
@@ -23,6 +28,47 @@ WebServer server(80);
 
 const char *ssid = "DRONE";
 const char *password = "robosoft";
+
+struct PLCConnectionType {
+  uint8_t IP[4];
+  uint16_t Rack;
+  uint16_t Slot;
+  int DBReceive;
+  int DBSend;
+  bool Connected;
+  unsigned long plcLastUpdate;
+};
+
+PLCConnectionType PLCConnectionData = { { 0, 0, 0, 0 }, 0, 0, 100, 101, false, 0 };
+
+struct PLCDataExchangeType {
+  struct {
+    bool LifeBit;
+    bool AutoMode;
+    bool SafetyOK;
+    bool Spare[13];
+    uint16_t ProgNum;  //2 bytes
+    bool Evento[16];   //16 bits
+  } FromPLC;           //Total de 6 bytes
+
+  struct {
+    bool LifeBit;
+    bool InAutoMode;
+    bool Spare[14];
+    uint16_t ActualProg;  //2 bytes
+    bool Ordem[16];       //16 bits
+  } ToPLC;                //Total de 6 bytes
+};
+
+PLCDataExchangeType PLCDataExchange;
+
+IPAddress PLC(
+  PLCConnectionData.IP[0],
+  PLCConnectionData.IP[1],
+  PLCConnectionData.IP[2],
+  PLCConnectionData.IP[3]);  // PLC Address
+
+S7Client PLCClient;
 
 struct ManualMoveType {
   struct {
@@ -62,7 +108,6 @@ struct ManualMoveType {
     bool IsOnline;
   } Telemetry;
 };
-
 struct JointParam {
   int minAngle;
   int maxAngle;
@@ -71,7 +116,6 @@ struct JointParam {
   int pinDir;
   int pinEnable;
 };
-
 struct GripperParam {
   int minAngle;
   int maxAngle;
@@ -80,9 +124,9 @@ struct GripperParam {
   int angleClosed;
 };
 
-GripperParam gripperParam = {0, 180, 21, 30, 150};
+GripperParam gripperParam = { 40, 120, 21, 40, 120 };
 
-struct RobotStateType{
+struct RobotStateType {
   struct {
     bool MoveAngle;
     bool MoveJoint;
@@ -98,11 +142,11 @@ struct RobotStateType{
 
 RobotStateType RobotState;
 
-JointParam joint1Param = { -360, 360, 15.0 / 160.0  , 13, 12, 14};
-JointParam joint2Param = { -360, 360, 21.4 / 120.0  , 27, 26, 25};
-JointParam joint3Param = { -360, 360, (21.4 / 95.0) / 5.0   , 33, 32, 0}; //Sem enable
-JointParam joint4Param = { -360, 360, 1             , 4, 16.0, 17};
-JointParam joint5Param = { -360, 360, 15.0 / 70.0   , 5, 18, 19};
+JointParam joint1Param = { -360, 360, 15.0 / 160.0, 13, 12, 14 };
+JointParam joint2Param = { -360, 360, 21.4 / 120.0, 27, 26, 25 };
+JointParam joint3Param = { -360, 360, (21.4 / 95.0) / 5.0, 33, 32, 0 };  //Sem enable
+JointParam joint4Param = { -360, 360, 1, 4, 16.0, 17 };
+JointParam joint5Param = { -360, 360, 15.0 / 70.0, 5, 18, 19 };
 
 ManualMoveType Commands;
 
@@ -119,18 +163,18 @@ unsigned long lastPingTime = millis();
 
 void setup() {
   Serial.begin(115200);
-  // Initialize SPIFFS
-  #ifdef ESP32
-    if (!SPIFFS.begin(true)) {
-      Serial.println("An Error has occurred while mounting SPIFFS");
-      return;
-    }
-  #else
-    if (!SPIFFS.begin()) {
-      Serial.println("An Error has occurred while mounting SPIFFS");
-      return;
-    }
-  #endif
+// Initialize SPIFFS
+#ifdef ESP32
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+#else
+  if (!SPIFFS.begin()) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+#endif
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -156,7 +200,7 @@ void setup() {
   joint2.attach(joint2Param.pinTrigger, joint2Param.pinDir);  //25 enable
   joint3.attach(joint3Param.pinTrigger, joint3Param.pinDir);  //sem enable
   joint4.attach(joint4Param.pinTrigger, joint4Param.pinDir);  //17 enable
-  joint5.attach(joint5Param.pinTrigger, joint5Param.pinDir);    //19 enable
+  joint5.attach(joint5Param.pinTrigger, joint5Param.pinDir);  //19 enable
   gripper.attach(gripperParam.pinTrigger);
 
   pinMode(joint1Param.pinEnable, OUTPUT);
@@ -178,10 +222,15 @@ void setup() {
   server.on("/getRobotStatus", APIGetRobotStatus);
   server.on("/getJointAngles", APIGetJointAngles);
   server.on("/getJointLimits", APIGetJointLimits);
+  server.on("/getPLCConectionStatus", APIGetPLCConnectionStatus);
   server.on("/postJointCalibration", HTTP_POST, APIPostJointCalibration);
   server.on("/postJointLimits", HTTP_POST, APIPostJointLimits);
   server.on("/postRobotState", HTTP_POST, APIPostRobotState);
   server.on("/postSaveExternalCode", HTTP_POST, APIPostSaveExternalCode);
+  server.on("/postStartExternalCode", HTTP_POST, APIPostStartExternalCode);
+  server.on("/postPLCConfig", HTTP_POST, APIPostPLCConfig);
+  server.on("/postPLCConectar", HTTP_POST, APIPostPLCConectar);
+  server.on("/postPLCDesconectar", HTTP_POST, APIPostPLCDesconectar);
   server.begin();
 
   Serial.println("Inicializa as tasks");
@@ -189,13 +238,13 @@ void setup() {
   xTaskCreate(TaskWebServerAPI, "TaskWebServerAPI", 10000, NULL, 1, NULL);
   xTaskCreate(TaskWebSocket, "TaskWebSocket", 10000, NULL, 1, NULL);
   xTaskCreate(TaskCheckComm, "TaskCheckComm", 10000, NULL, 1, NULL);
+  xTaskCreate(TaskCommPLC, "TaskCommPLC", 20000, NULL, 1, NULL);
   xTaskCreate(TaskExternalProg, "TaskExternalProg", 20000, NULL, 1, NULL);
 
   Serial.println("Finaliza a inicializacao das tasks");
 }
 
 void loop() {
-  
 
   if (RobotState.ModoOperacao.Manual) {
     ManualMove();
@@ -272,19 +321,19 @@ void ManualMove() {
       MoveJointSpeed(5, Commands.MoveJoint.Joint5 * RobotState.Speed, 1);
     }
 
-    if (Commands.Gripper.Open){
+    if (Commands.Gripper.Open) {
       MoveGripperPosition(gripperParam.angleOpenned, RobotState.Speed);
     }
 
-    if (Commands.Gripper.Close){
+    if (Commands.Gripper.Close) {
       MoveGripperPosition(gripperParam.angleClosed, RobotState.Speed);
     }
 
-    if (Commands.Gripper.MoveOpen){
+    if (Commands.Gripper.MoveOpen) {
       MoveGripperSpeed(RobotState.Speed);
     }
 
-    if (Commands.Gripper.MoveClose){
+    if (Commands.Gripper.MoveClose) {
       MoveGripperSpeed(RobotState.Speed * -1);
     }
 
@@ -300,14 +349,19 @@ void TaskExternalProg(void *pvParameters) {
   Serial.println("Task TaskExternalProg Iniciada");
 
   while (true) {
-    if (RobotState.ModoOperacao.Auto){
-      if (CompilerData.PlayCode){
-        ExecuteJS(CompilerData.Code.c_str());
+    if (RobotState.ModoOperacao.Auto) {
+      Serial.println("Aguardando PlayCode");
+      if (CompilerData.PlayCode) {
+        Serial.print("Rodando codigo externo. Codigo: ");
+        Serial.println(CompilerData.Code.c_str());
+        int val = ExecuteJS(CompilerData.Code.c_str());
         CompilerData.PlayCode = false;
-      }else{
+        Serial.print("Finalizando codigo externo com codigo: ");
+        Serial.println(val);
+      } else {
         delay(500);
       }
-    }else{
+    } else {
       delay(500);
     }
   }
@@ -320,7 +374,7 @@ void TaskCheckComm(void *pvParameters) {
   while (true) {
     Commands.Telemetry.IsOnline = millis() - lastPingTime < 500;
     if (!Commands.Telemetry.IsOnline) {
-      Commands.General.DeadMan  = false;
+      Commands.General.DeadMan = false;
     }
 
     vTaskDelayUntil(&xLastWakeTime, xFrequency);  // delay até o próximo ciclo
@@ -343,6 +397,46 @@ void TaskWebSocket(void *parameter) {
   while (true) {
     // Mantém o WebSocket ativo
     webSocket.loop();
+
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);  // delay até o próximo ciclo
+  }
+}
+void TaskCommPLC(void *parameter) {
+  Serial.println("TaskCommPLC Iniciada");
+  const TickType_t xFrequency = pdMS_TO_TICKS(500);  // ciclo de 500 ms
+  TickType_t xLastWakeTime = xTaskGetTickCount();    // pega o tick atual
+  bool lastBit = false;
+  while (true) {
+    if (PLCConnectionData.Connected) {
+      PLCRead();
+
+      //Check connection
+      if ((millis() - PLCConnectionData.plcLastUpdate) > 5000) {
+        PLCDisconnect();
+        Serial.println("Conexao com o PLC fechada devido ao TimeOut de 5 segundos");
+      } else {
+        if (PLCDataExchange.FromPLC.LifeBit != lastBit) {
+          PLCConnectionData.plcLastUpdate = millis();
+          lastBit = PLCDataExchange.FromPLC.LifeBit;
+        }
+      }
+
+      //RobotState.SafetyOK = PLCDataExchange.FromPLC.SafetyOK;
+      //RobotState.ModoOperacao.Auto = PLCDataExchange.FromPLC.AutoMode;
+      CompilerData.ProgNum = PLCDataExchange.FromPLC.ProgNum;
+      for (int i = 0; i < 16; i++) {
+        CompilerData.Evento[i] = PLCDataExchange.FromPLC.Evento[i];
+      }
+
+      PLCDataExchange.ToPLC.LifeBit = !PLCDataExchange.ToPLC.LifeBit;
+      PLCDataExchange.ToPLC.InAutoMode = RobotState.ModoOperacao.Auto;
+      PLCDataExchange.ToPLC.ActualProg = swap(PLCDataExchange.FromPLC.ProgNum);
+      for (int i = 0; i < 16; i++) {
+        CompilerData.Ordem[i] = PLCDataExchange.ToPLC.Ordem[i];
+      }
+
+      PLCWrite();
+    }
 
     vTaskDelayUntil(&xLastWakeTime, xFrequency);  // delay até o próximo ciclo
   }
@@ -467,6 +561,41 @@ void APIGetJointLimits() {
   serializeJson(jsonDocument, buffer);
   server.send(200, "application/json", buffer);
 }
+void APIGetPLCConnectionStatus() {
+  StaticJsonDocument<1024> jsonDocument;
+  char buffer[1024];
+
+  jsonDocument.clear();  // Clear json buffer
+  JsonObject json = jsonDocument.to<JsonObject>();
+
+  json["PLC"]["IP"][0] = PLCConnectionData.IP[0];
+  json["PLC"]["IP"][1] = PLCConnectionData.IP[1];
+  json["PLC"]["IP"][2] = PLCConnectionData.IP[2];
+  json["PLC"]["IP"][3] = PLCConnectionData.IP[3];
+
+  json["PLC"]["RACK"] = PLCConnectionData.Rack;
+  json["PLC"]["SLOT"] = PLCConnectionData.Slot;
+
+  json["CONNECTION"] = PLCConnectionData.Connected;
+
+  json["RECEIVE"]["LIFE_BIT"] = PLCDataExchange.FromPLC.LifeBit;
+  json["RECEIVE"]["AUTO_MODE"] = PLCDataExchange.FromPLC.LifeBit;
+  json["RECEIVE"]["SAFETY_OK"] = PLCDataExchange.FromPLC.LifeBit;
+  json["RECEIVE"]["PROGNUM"] = PLCDataExchange.FromPLC.ProgNum;
+  for (int i = 0; i < 16; i++) {
+    json["RECEIVE"]["EVENTOS"][i] = PLCDataExchange.FromPLC.Evento[i];
+  }
+
+  json["SEND"]["LIFE_BIT"] = PLCDataExchange.ToPLC.LifeBit;
+  json["SEND"]["IN_AUTO_MODE"] = PLCDataExchange.ToPLC.InAutoMode;
+  json["SEND"]["ACTUAL_PROG"] = PLCDataExchange.ToPLC.ActualProg;
+  for (int i = 0; i < 16; i++) {
+    json["SEND"]["ORDENS"][i] = PLCDataExchange.ToPLC.Ordem[i];
+  }
+
+  serializeJson(jsonDocument, buffer);
+  server.send(200, "application/json", buffer);
+}
 void APIPostJointCalibration() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");  // Recebe o corpo da requisição
@@ -581,7 +710,7 @@ void APIPostJointLimits() {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
   }
 }
-void APIPostGripperPosition(){
+void APIPostGripperPosition() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");  // Recebe o corpo da requisição
 
@@ -597,7 +726,7 @@ void APIPostGripperPosition(){
       server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
       return;
     }
-    
+
     gripperParam.angleOpenned = doc["Gripper"]["PosOpen"];
     gripperParam.angleClosed = doc["Gripper"]["PosClose"];
     Parameters["GripperParam"] = doc["Gripper"];
@@ -642,7 +771,7 @@ void APIPostRobotState() {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
   }
 }
-void APIPostSaveExternalCode(){
+void APIPostSaveExternalCode() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");  // Recebe o corpo da requisição
 
@@ -659,13 +788,61 @@ void APIPostSaveExternalCode(){
       return;
     }
 
-    CompilerData.Code  = doc["code"].as<String>(); //Guarda o codigo e aguarda inicializar
+    CompilerData.Code = doc["code"].as<String>();  //Guarda o codigo e aguarda inicializar
 
     // Resposta ao cliente
     server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
   } else {
     server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
   }
+}
+void APIPostStartExternalCode() {
+  CompilerData.PlayCode = true;
+  // Resposta ao cliente
+  server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+}
+void APIPostPLCConfig() {
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");  // Recebe o corpo da requisição
+
+    // Cria um objeto JSON para armazenar os dados recebidos
+    StaticJsonDocument<200> doc;
+
+    // Deserializa o JSON recebido
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+      Serial.print("Erro ao parsear JSON: ");
+      Serial.println(error.c_str());
+      server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"JSON inválido\"}");
+      return;
+    }
+
+    PLCConnectionData.IP[0] = doc["IP"][0];
+    PLCConnectionData.IP[1] = doc["IP"][1];
+    PLCConnectionData.IP[2] = doc["IP"][2];
+    PLCConnectionData.IP[3] = doc["IP"][3];
+
+    PLCConnectionData.Rack = doc["RACK"];
+    PLCConnectionData.Slot = doc["SLOT"];
+
+    // Resposta ao cliente
+    server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+  } else {
+    server.send(400, "application/json", "{\"status\":\"erro\",\"msg\":\"Corpo vazio no POST\"}");
+  }
+}
+void APIPostPLCConectar() {
+  bool sucesso = PLCConnect();
+
+  // Resposta ao cliente
+  server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
+}
+void APIPostPLCDesconectar() {
+  PLCDisconnect();
+
+  // Resposta ao cliente
+  server.send(200, "application/json", "{\"status\":\"sucesso\",\"msg\":\"JSON recebido com sucesso\"}");
 }
 /************************************/
 
@@ -675,15 +852,16 @@ jsval_t WaitTime(struct js *js, jsval_t *args, int nargs) {
   return js_mknum(0);
 }
 jsval_t OpenGripper(struct js *js, jsval_t *args, int nargs) {
-  MoveGripperPosition(gripperParam.angleOpenned, RobotState.Speed);
-  while(!GripperOpenned()){
+  MoveGripperPosition(gripperParam.angleOpenned, 100);
+  while (!GripperOpenned()) {
     delay(1);
   }
   return js_mknum(0);
 }
 jsval_t CloseGripper(struct js *js, jsval_t *args, int nargs) {
-  MoveGripperPosition(gripperParam.angleClosed, RobotState.Speed);
-  while(!GripperClosed()){
+  Serial.println("Comando CloseGripper");
+  MoveGripperPosition(gripperParam.angleClosed, 100);
+  while (!GripperClosed()) {
     delay(1);
   }
   return js_mknum(0);
@@ -693,7 +871,29 @@ jsval_t SetAprox(struct js *js, jsval_t *args, int nargs) {
   return js_mknum(0);
 }
 jsval_t SetSpeed(struct js *js, jsval_t *args, int nargs) {
+  Serial.println("Comando Speed");
   CompilerData.Speed = js_getnum(args[0]);
+  return js_mknum(0);
+}
+jsval_t PLCReadEvent(struct js *js, jsval_t *args, int nargs) {
+  int index = js_getnum(args[0]);
+  if (index >= 1 && index <= 16) {
+    return js_mknum(PLCDataExchange.FromPLC.Evento[index - 1]);
+  }
+  return js_mknum(0);
+}
+jsval_t PLCSetOrdem(struct js *js, jsval_t *args, int nargs) {
+  int index = js_getnum(args[0]);
+  if (index >= 1 && index <= 16) {
+    PLCDataExchange.ToPLC.Ordem[index - 1] = true;
+  }
+  return js_mknum(0);
+}
+jsval_t PLCResetOrdem(struct js *js, jsval_t *args, int nargs) {
+  int index = js_getnum(args[0]);
+  if (index >= 1 && index <= 16) {
+    PLCDataExchange.ToPLC.Ordem[index - 1] = false;
+  }
   return js_mknum(0);
 }
 /**
@@ -712,38 +912,51 @@ jsval_t MoveJ(struct js *js, jsval_t *args, int nargs) {
   //Serial.println(js_getnum(args[0]) + js_getnum(args[1]));
 
   //Move para o ponto todos os motores
-  for(int i = 0; i < 6; i++){
-    MoveJointPosition(i+1, args[i], CompilerData.Speed);
+  for (int i = 0; i < 5; i++) {
+    MoveJointPosition(i + 1, js_getnum(args[i]), CompilerData.Speed);
   }
 
   //Aguarda o movimento estar finalizado
+  /*
   int jointMoveFinished = 0;
-  while(jointMoveFinished!=6){
+  while(jointMoveFinished!=5){
     jointMoveFinished = 0;
-    for(int i = 0; i < 6; i++){
-      if (TargetReached(i+1, CompilerData.Aproximacao, args[i])){
+    for(int i = 0; i < 5; i++){
+      if (TargetReached(i+1, CompilerData.Aproximacao, js_getnum(args[i]))){
         jointMoveFinished++;
       }
     }
   }
+  */
+  return js_mknum(0);
+}
+jsval_t MoveGripper(struct js *js, jsval_t *args, int nargs) {
+  //js_getnum(args[0]) + js_getnum(args[1]));
+
+  //Move gripper para a posicao em angulo
+  MoveGripperPosition(js_getnum(args[0]), 100);
+  while (js_getnum(args[0]) != GripperGetCurrentAngle()) {
+    delay(10);
+  }
 
   return js_mknum(0);
 }
-int ExecuteJS(const char* jsCode) {
+int ExecuteJS(const char *jsCode) {
   // Calcule o tamanho do código JavaScript
   size_t codeLength = strlen(jsCode);  // Obtém o tamanho da string
 
   // Calcule o tamanho total do buffer necessário
   size_t totalBufferSize = codeLength + 200;
+  totalBufferSize = 5000;
 
   // Se o comprimento for zero, retorna
   if (codeLength == 0) return 0;
 
   // Cria a instância JS com o buffer calculado
-  struct js* js = js_create(new char[totalBufferSize], totalBufferSize);
+  struct js *js = js_create(new char[totalBufferSize], totalBufferSize);
   if (js == nullptr) {
-      Serial.println("Falha ao criar instância JS.");
-      return 0;
+    Serial.println("Falha ao criar instância JS.");
+    return 0;
   }
 
   jsval_t global = js_glob(js);
@@ -751,9 +964,14 @@ int ExecuteJS(const char* jsCode) {
   js_set(js, global, "MoveJ", js_mkfun(MoveJ));
   js_set(js, global, "SetSpeed", js_mkfun(SetSpeed));
   js_set(js, global, "SetAprox", js_mkfun(SetAprox));
+  js_set(js, global, "MoveGripper", js_mkfun(MoveGripper));
   js_set(js, global, "OpenGripper", js_mkfun(OpenGripper));
   js_set(js, global, "CloseGripper", js_mkfun(CloseGripper));
   js_set(js, global, "WaitTime", js_mkfun(WaitTime));
+
+  js_set(js, global, "PLCReadEvent", js_mkfun(PLCReadEvent));
+  js_set(js, global, "PLCSetOrdem", js_mkfun(PLCSetOrdem));
+  js_set(js, global, "PLCResetOrdem", js_mkfun(PLCResetOrdem));
 
   // Executa o código JS
   jsval_t v = js_eval(js, jsCode, ~0U);
@@ -761,14 +979,115 @@ int ExecuteJS(const char* jsCode) {
 }
 /************************************/
 
+/************* PLC ****************/
+bool PLCConnect() {
+  PLCDataExchangeType PLCDataExchange;
+
+  IPAddress PLC(
+    PLCConnectionData.IP[0],
+    PLCConnectionData.IP[1],
+    PLCConnectionData.IP[2],
+    PLCConnectionData.IP[3]);  // PLC Address
+
+  int Result = PLCClient.ConnectTo(PLC, PLCConnectionData.Rack, PLCConnectionData.Slot);
+
+  if (Result != 0) {
+    Serial.print("Erro de conexao com o PLC - IP:");
+    Serial.print(PLCConnectionData.IP[0]);
+    Serial.print(".");
+    Serial.print(PLCConnectionData.IP[2]);
+    Serial.print(".");
+    Serial.print(PLCConnectionData.IP[3]);
+    Serial.print(".");
+    Serial.print(PLCConnectionData.IP[4]);
+    Serial.print(" - Rack: ");
+    Serial.print(PLCConnectionData.Rack);
+    Serial.print(" - Slot: ");
+    Serial.print(PLCConnectionData.Slot);
+    Serial.println("");
+  }
+
+  PLCConnectionData.Connected = Result == 0;
+  PLCConnectionData.plcLastUpdate = millis();
+
+  return Result == 0;
+}
+void PLCDisconnect() {
+  PLCClient.Disconnect();
+  PLCConnectionData.Connected = false;
+}
+void PLCRead() {
+  if (PLCConnectionData.Connected) {
+    byte Buffer[512];  //Tamanho da PDU 512 bytes
+    for (int i = 0; i < 6; i++) {
+      Buffer[i] = 0;
+    }
+
+    uint Result = PLCClient.ReadArea(S7AreaDB, PLCConnectionData.DBReceive, 0, 3, &Buffer);
+
+    //Erro critico. Tem que desconectar
+    if (Result & 0x00FF) {
+      Serial.println("PLC SEVERE ERROR, disconnecting...");
+      PLCDisconnect();
+      return;
+    }
+
+    //General bits
+    PLCDataExchange.FromPLC.LifeBit = Buffer[0] & 0x01;
+    PLCDataExchange.FromPLC.AutoMode = (Buffer[0] >> 1) & 0x01;
+    PLCDataExchange.FromPLC.SafetyOK = (Buffer[0] >> 2) & 0x01;
+    //Prog num
+    PLCDataExchange.FromPLC.ProgNum = swap(Buffer[2] | (Buffer[3] << 8));
+    //Events bits
+    for (int i = 0; i < 8; i++) {
+      PLCDataExchange.FromPLC.Evento[i] = (Buffer[4] >> i) & 0x01;
+    }
+    for (int i = 0; i < 8; i++) {
+      PLCDataExchange.FromPLC.Evento[i + 8] = (Buffer[5] >> i) & 0x01;
+    }
+  }
+}
+void PLCWrite() {
+  if (PLCConnectionData.Connected) {
+    byte Buffer[512];  //Tamanho da PDU 512 bytes
+    for (int i = 0; i < 6; i++) {
+      Buffer[i] = 0;
+    }
+
+    // General data
+    Buffer[0] |= PLCDataExchange.ToPLC.LifeBit & 0x01;            //Life bit
+    Buffer[0] |= (PLCDataExchange.ToPLC.InAutoMode & 0x01) << 1;  //In Auto Mode
+
+    // Bytes 1 e 2: ActualProg
+    Buffer[2] = PLCDataExchange.ToPLC.ActualProg & 0xFF;         // LSB
+    Buffer[3] = (PLCDataExchange.ToPLC.ActualProg >> 8) & 0xFF;  // MSB
+
+    // Bytes 3 e 4: Ordem bits
+    for (int i = 0; i < 8; i++) {
+      Buffer[4] |= (PLCDataExchange.ToPLC.Ordem[i] & 0x01) << i;
+    }
+
+    for (int i = 0; i < 8; i++) {
+      Buffer[5] |= (PLCDataExchange.ToPLC.Ordem[i + 8] & 0x01) << i;
+    }
+
+    int result = PLCClient.WriteArea(S7AreaDB, PLCConnectionData.DBSend, 0, 3, &Buffer);
+
+    if (result != 0) {
+      Serial.println("Erro ao enviar os dados para o PLC");
+    }
+  }
+}
+/************************************/
+
 /************* JOINTS ****************/
-void EnableAllMotors(){
-  for(int i = 1; i <= 5; i++){
+void EnableAllMotors() {
+  for (int i = 1; i <= 5; i++) {
     EnableJoint(i);
   }
 }
-void DisableAllMotors(){
-  for(int i = 1; i <= 5; i++){
+void DisableAllMotors() {
+  for (int i = 1; i <= 5; i++) {
     DisableJoint(i);
   }
 }
@@ -860,7 +1179,7 @@ void MoveJointSpeed(int index, float speed, int ramp) {
   if (index == 1) {
     joint1.setRampLen(ramp);
     joint1.setSpeed(ConvertSpeed(speed, joint1Param.jointRatio));
-    
+
     if (InnerRange(GetCurrentAngle(1), joint1Param.minAngle, joint1Param.maxAngle)) {
       joint1.rotate(direction ? 1 : -1);
     } else if (GetCurrentAngle(1) > joint1Param.maxAngle && direction < 0) {
@@ -931,14 +1250,14 @@ void MoveJointSpeed(int index, float speed, int ramp) {
 void MoveJointPosition(int index, float position, float speed) {
   int ramp = 1;
 
-  if (speed == 0){
+  if (speed == 0) {
     StopMotor(index);
     return;
   }
 
   if (index == 1) {
     if (GetCurrentAngle(1) != position) {
-      joint1.setSpeed(ConvertSpeed(speed,joint1Param.jointRatio));
+      joint1.setSpeed(ConvertSpeed(speed, joint1Param.jointRatio));
       joint1.setRampLen(ramp);
       joint1.write(range(position * joint1Param.jointRatio, joint1Param.minAngle, joint1Param.maxAngle));
     }
@@ -976,39 +1295,39 @@ void MoveJointPosition(int index, float position, float speed) {
     }
   }
 }
-float ConvertSpeed(float speedPorCento, float axisRatio){
-  float maxSpeed = 45; //°/s max
+float ConvertSpeed(float speedPorCento, float axisRatio) {
+  float maxSpeed = 45;  //°/s max
 
-  float speed = speedPorCento / 100 * maxSpeed; //Converte porcentagem da velocidade
-  speed = (speed * 60/*segundos*/)/360.0/*graus*/;  //converte para RPM
-  speed = speed * 10; //Constante da biblioteca
+  float speed = speedPorCento / 100 * maxSpeed;         //Converte porcentagem da velocidade
+  speed = (speed * 60 /*segundos*/) / 360.0 /*graus*/;  //converte para RPM
+  speed = speed * 10;                                   //Constante da biblioteca
   speed = speed / axisRatio;
-  return speed; //Multiplica pela razão da polia com o eixo
+  return speed;  //Multiplica pela razão da polia com o eixo
 }
 float GetCurrentAngle(int joint) {
   if (joint == 1) {
-    return ((float) joint1.read()) * joint1Param.jointRatio;
+    return ((float)joint1.read()) * joint1Param.jointRatio;
   }
 
   if (joint == 2) {
-    return ((float) joint2.read()) * joint2Param.jointRatio;
+    return ((float)joint2.read()) * joint2Param.jointRatio;
   }
 
   if (joint == 3) {
-    return ((float) joint3.read()) * joint3Param.jointRatio;
+    return ((float)joint3.read()) * joint3Param.jointRatio;
   }
 
   if (joint == 4) {
-    return ((float) joint4.read()) * joint4Param.jointRatio;
+    return ((float)joint4.read()) * joint4Param.jointRatio;
   }
 
   if (joint == 5) {
-    return ((float) joint5.read()) * joint5Param.jointRatio;
+    return ((float)joint5.read()) * joint5Param.jointRatio;
   }
 
   return 0;
 }
-bool TargetReached(int index, int zone, long target){
+bool TargetReached(int index, int zone, long target) {
   long angle = GetCurrentAngle(index);
   bool aproxMin = abs(GetCurrentAngle(index) - target);
   return aproxMin < zone;
@@ -1060,12 +1379,12 @@ void ResetJointPosition(int index) {
 /************************************/
 
 /************* GRIPPER ****************/
-void StopGripper(){
+void StopGripper() {
   return;
   gripper.write(gripper.read());
 }
-void MoveGripperPosition(long position, float speed){
-  if (speed == 0){
+void MoveGripperPosition(long position, float speed) {
+  if (speed == 0) {
     StopGripper();
     return;
   }
@@ -1075,22 +1394,22 @@ void MoveGripperPosition(long position, float speed){
     gripper.write(range(position, gripperParam.minAngle, gripperParam.maxAngle));
   }
 }
-void MoveGripperSpeed(float speed){
-  MoveGripperPosition(GripperGetCurrentAngle() + (speed > 0 ? 1 : -1), speed); //Soma 1 na posição atual
+void MoveGripperSpeed(float speed) {
+  MoveGripperPosition(GripperGetCurrentAngle() + (speed > 0 ? 1 : -1), speed);  //Soma 1 na posição atual
 }
-byte GripperGetCurrentAngle(){
+byte GripperGetCurrentAngle() {
   return gripper.read();
 }
-bool IsGripperMoving(){
+bool IsGripperMoving() {
   return gripper.moving() != 0;
 }
-bool GripperOpenned(){
+bool GripperOpenned() {
   return gripper.read() == gripperParam.angleOpenned;
 }
-bool GripperClosed(){
+bool GripperClosed() {
   return gripper.read() == gripperParam.angleClosed;
 }
-bool ResetGripperPosition(){
+bool ResetGripperPosition() {
   gripper.detach();
   gripper.attach(gripperParam.pinTrigger);
 }
@@ -1116,11 +1435,11 @@ void ReadParameters() {
       Serial.println("Parameters read with success");
     }
 
-    if (Parameters.containsKey("GripperParam")){
+    if (Parameters.containsKey("GripperParam")) {
       gripperParam.minAngle = Parameters["GripperParam"]["MinAngle"];
-      gripperParam.maxAngle = Parameters["Gripper"]["MaxAngle"];
-      gripperParam.angleClosed = Parameters["Gripper"]["PosClose"];
-      gripperParam.angleOpenned = Parameters["Gripper"]["PosOpen"];
+      gripperParam.maxAngle = Parameters["GripperParam"]["MaxAngle"];
+      gripperParam.angleClosed = Parameters["GripperParam"]["PosClose"];
+      gripperParam.angleOpenned = Parameters["GripperParam"]["PosOpen"];
 
       joint1Param.minAngle = Parameters["Joint1Param"]["MinAngle"];
       joint1Param.maxAngle = Parameters["Joint1Param"]["MaxAngle"];
@@ -1138,6 +1457,9 @@ void ReadParameters() {
       joint5Param.maxAngle = Parameters["Joint5Param"]["MaxAngle"];
     }
   }
+}
+uint16_t swap(uint16_t data) {
+  return (data >> 8) | (data << 8);
 }
 float mapFloat(float value, float minVal, float maxVal, float min, float max) {
   return (value - minVal) * (max - min) / (maxVal - minVal) + min;
